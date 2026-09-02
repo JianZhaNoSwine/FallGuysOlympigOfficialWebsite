@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>奥林PIG运动会官网</title>
+<link rel="stylesheet" href="css/style.css?v=20260828y" />
+<!-- 背景音乐：赛季=C2 默认 OP2（静音自动播放保证能起，JS 启动后按音量决定是否解静音）-->
+<audio id="bgmAudio" src="flac/OP2.flac" preload="auto" loop autoplay muted></audio>
+</head>
+<body>
+  <!-- 壁纸暗化遮罩（由灰暗度滑块控制）-->
+  <div class="bg-overlay" id="bgOverlay"></div>
+
+  <div class="app">
+    <!-- ============ 视图：首页（3 列）============ -->
+    <div class="view view-home" id="view-home">
+      <div class="layout">
+        <aside class="col col-1">
+          <div class="card home-card">
+            <div class="card-header">
+              <h2>人员</h2>
+            </div>
+            <div class="list-wrap">
+              <ul class="people-list" id="homePeopleList"></ul>
+            </div>
+          </div>
+        </aside>
+        <main class="col col-2">
+          <div class="card home-card">
+            <div class="card-header">
+              <h2>日历</h2>
+              <div class="header-actions">
+                <button class="glass-btn round" id="homeCalendarTodayBtn" data-icon="refresh" title="回到今天"></button>
+              </div>
+            </div>
+              <div class="list-wrap">
+              <div id="homeCalendar"></div>
+            </div>
+          </div>
+        </main>
+        <aside class="col col-3">
+          <div class="card home-card">
+            <div class="card-header">
+              <h2>项目</h2>
+            </div>
+            <div class="list-wrap">
+              <ul class="people-list" id="homeProjectsList"></ul>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ 视图：热点（3 列，参考首页）============ -->
+    <div class="view view-hot" id="view-hot" hidden>
+      <div class="layout">
+        <!-- 第1列：热点帖子列表 + 搜索框 -->
+        <aside class="col col-1">
+          <div class="card home-card">
+            <div class="card-header">
+              <h2>热点</h2>
+            </div>
+            <!-- 搜索框：放在 list-wrap 外部（卡片 header 下面）= 永远固定在顶部，不会跟随滚动容器一起滚走；
+                 作为 .card 的直接子元素会自动继承 card 的 padding:20px，左右宽度和 list-wrap 内部帖子卡片完美对齐 -->
+            <div class="hp-search-wrap">
+              <div class="hp-search-box">
+                <span class="hp-search-icon" data-icon="search"></span>
+                <input type="text" id="hpSearchInput" class="hp-search" placeholder="搜索 0 个帖子" autocomplete="off">
+              </div>
+            </div>
+            <div class="list-wrap">
+              <div class="history-list" id="hpListContainer"></div>
+            </div>
+          </div>
+        </aside>
+        <!-- 第2列：帖子详情 -->
+        <main class="col col-2">
+          <div class="card home-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="hpDetailBackBtn" data-icon="back" hidden aria-label="返回" title="返回"></button>
+              <h2 id="hpDetailHeaderTitle">详情</h2>
+            </div>
+            <div class="list-wrap">
+              <div class="hp-detail-empty" id="hpDetailEmpty"></div>
+              <div id="hpDetailContainer" hidden></div>
+            </div>
+          </div>
+        </main>
+        <!-- 第3列：评论列表 -->
+        <aside class="col col-3">
+          <div class="card home-card">
+            <div class="card-header">
+              <h2 id="hpCommentHeaderTitle"><span id="hpCommentHeaderText">评论</span></h2>
+              <button class="glass-btn round" id="hpCommentBackBtn" data-icon="close" hidden aria-label="关闭" title="关闭"></button>
+            </div>
+            <div class="list-wrap">
+              <div class="hp-comment-empty" id="hpCommentEmpty"></div>
+              <div id="hpCommentContainer" hidden></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ 视图：排行（3 列）============ -->
+    <div class="view view-rank" id="view-rank" hidden>
+      <div class="layout">
+        <!-- 第1列：总榜 + 项目分榜列表（每项右侧可链接项目类型名单）-->
+        <aside class="col col-1">
+          <div class="card list-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="rankBoardEyeBtn" data-icon="eye" hidden aria-label="排名" title="排名"></button>
+              <h2>总榜</h2>
+            </div>
+            <div class="list-wrap">
+              <ul class="people-list" id="rankOverallList">
+                <li class="person-item" data-overall="1">
+                  <span class="index">0</span>
+                  <span class="name">总排行</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card people-card" id="rankPeopleCard">
+            <div class="card-header">
+              <h2>项目</h2>
+            </div>
+            <div class="list-wrap">
+              <ul class="people-list" id="rankPeopleContainer"></ul>
+            </div>
+          </div>
+        </aside>
+        <main class="col col-2">
+          <div class="card rank-table-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="rankDetailBackBtn" data-icon="back" hidden aria-label="返回" title="返回"></button>
+              <h2>成绩</h2>
+            </div>
+            <div class="rank-table-wrap" id="rankTableWrap">
+              <div class="rank-table-empty" id="rankTableEmpty"></div>
+              <div class="rank-table-container" id="rankTableContainer" hidden></div>
+            </div>
+          </div>
+        </main>
+        <aside class="col col-3">
+          <div class="card rank-top-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="rankBoardBackBtn" data-icon="back" hidden aria-label="返回" title="返回"></button>
+              <h2>排名</h2>
+            </div>
+            <div class="rank-board">
+              <div class="rank-board-title">水军榜</div>
+              <div class="rank-board-scroll">
+                <ul class="rank-board-list" id="rankCommentBoard"></ul>
+              </div>
+            </div>
+            <div class="rank-board">
+              <div class="rank-board-title">关怀榜</div>
+              <div class="rank-board-scroll">
+                <ul class="rank-board-list" id="rankReplyBoard"></ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ 视图：抽签 ============ -->
+    <div class="view view-draw" id="view-draw" hidden>
+      <div class="layout">
+        <!-- 第1列：名单 + 人员 -->
+        <aside class="col col-1">
+          <div class="card list-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="drawPeopleEyeBtn" data-icon="eye" hidden aria-label="人员" title="人员"></button>
+              <h2>名单</h2>
+            </div>
+            <div class="custom-select" id="listSelectWrap">
+              <button type="button" class="custom-select-trigger" id="listSelectTrigger">
+                <span class="link-badge" id="listLinkBadge" data-icon="link" hidden title="链接名单"></span>
+                <span class="custom-select-label" id="listSelectLabel">（暂无名单）</span>
+                <span class="custom-select-arrow" data-icon="chevron-down"></span>
+              </button>
+              <div class="custom-select-dropdown" id="listSelectDropdown" hidden></div>
+            </div>
+          </div>
+
+          <div class="card people-card" id="peopleCard">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="drawPeopleBackBtn" data-icon="back" hidden aria-label="返回" title="返回"></button>
+              <h2>人员</h2>
+            </div>
+            <div class="list-wrap">
+              <ul class="people-list" id="peopleContainer"></ul>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 第2列：抽取 -->
+        <main class="col col-2">
+          <div class="card draw-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn" id="drawDrawEyeBtn" data-icon="eye" hidden aria-label="历史" title="历史"></button>
+              <h2>抽取</h2>
+            </div>
+            <div class="draw-content">
+              <div class="result placeholder" id="result">?</div>
+            </div>
+            <div class="draw-footer">
+              <button class="glass-btn pill lg" id="drawBtn" disabled>开始抽取</button>
+              <div class="mode-scale" id="modeSelector">
+                <div class="mode-scale-bar">
+                  <div class="mode-scale-fill" id="modeScaleFill"></div>
+                </div>
+                <div class="mode-scale-btns">
+                  <button type="button" data-mode="single">
+                    <span class="dot"></span>
+                    <span class="label">单次</span>
+                    <span class="hint">一次性抽完不同的</span>
+                  </button>
+                  <button type="button" data-mode="repeat" class="active">
+                    <span class="dot"></span>
+                    <span class="label">重复</span>
+                    <span class="hint">重复抽取相同的</span>
+                  </button>
+                  <button type="button" data-mode="cycle">
+                    <span class="dot"></span>
+                    <span class="label">循环</span>
+                    <span class="hint">循环抽取不同的</span>
+                  </button>
+                  <button type="button" data-mode="list">
+                    <span class="dot"></span>
+                    <span class="label">列表</span>
+                    <span class="hint">连续抽完不同的</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <!-- 第3列：历史 -->
+        <aside class="col col-3">
+          <div class="card history-card">
+            <div class="card-header center">
+              <button class="glass-btn round hp-detail-back-btn draw-list-btn" id="drawListBackBtn" data-icon="back" hidden aria-label="返回" title="返回"></button>
+              <h2 id="thirdColTitle">历史</h2>
+              <div class="header-actions">
+                <!-- 历史模式 hidden；列表模式显示 share 按钮（复制到剪贴板）-->
+                <button class="glass-btn round" id="clearHistoryBtn" data-icon="close" title="清空历史"></button>
+              </div>
+            </div>
+            <div class="list-wrap">
+              <div class="history-list" id="historyList"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ 视图 2：设置 ============ -->
+    <div class="view view-settings" id="view-settings" hidden>
+      <div class="layout">
+        <!-- 第1列：设置分类 -->
+        <aside class="col col-1">
+          <div class="card">
+            <div class="card-header"><h2>设置</h2></div>
+            <div class="list-wrap">
+              <div class="settings-categories">
+                <div class="settings-category active" data-category="season">
+                  <span class="name">赛季切换</span>
+                </div>
+                <div class="settings-category" data-category="style">
+                  <span class="name">主题样式</span>
+                </div>
+                <div class="settings-category" data-category="help">
+                  <span class="name">使用说明</span>
+                </div>
+                <div class="settings-category" data-category="init">
+                  <span class="name">版本信息</span>
+                </div>
+                <div class="settings-category" data-category="about">
+                  <span class="name">关于网站</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 第2列：设置项 -->
+        <main class="col col-2">
+          <div class="card">
+            <!-- 主题样式面板（含深色模式） -->
+            <div class="settings-panel" data-panel="style" hidden>
+              <div class="card-header"><h2>主题样式</h2></div>
+              <div class="setting-item">
+                <label class="setting-label">深色模式</label>
+                <div class="custom-select" id="themeSelectWrap">
+                  <button type="button" class="custom-select-trigger" id="themeSelectTrigger">
+                    <span class="custom-select-label" id="themeSelectLabel">自动</span>
+                    <span class="custom-select-arrow" data-icon="chevron-down"></span>
+                  </button>
+                  <div class="custom-select-dropdown" id="themeSelectDropdown" hidden>
+                    <div class="custom-select-option" data-value="light"><span class="opt-name">浅色</span></div>
+                    <div class="custom-select-option" data-value="dark"><span class="opt-name">深色</span></div>
+                    <div class="custom-select-option" data-value="auto"><span class="opt-name">自动</span></div>
+                  </div>
+                </div>
+                <div class="setting-hint">自动模式切换壁纸时间：18:00~6:00深色壁纸，6:00~18:00浅色壁纸</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-row">
+                  <label class="setting-label" for="bgmVolumeSlider">背景音乐</label>
+                  <span class="setting-val" id="bgmVolumeValue">50%</span>
+                </div>
+                <input type="range" id="bgmVolumeSlider" class="setting-slider" min="0" max="100" value="50" step="1" />
+                <div class="setting-hint">网页自动播放赛季主题曲（来自其他游戏）</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-row">
+                  <label class="setting-label" for="blurSlider">模糊度</label>
+                  <span class="setting-val" id="blurValue">2px</span>
+                </div>
+                <input type="range" id="blurSlider" class="setting-slider" min="0" max="80" value="2" step="1" />
+                <div class="setting-hint">玻璃卡片的模糊程度</div>
+              </div>
+              <div class="setting-item">
+                <div class="setting-row">
+                  <label class="setting-label" for="darknessSlider">灰暗度</label>
+                  <span class="setting-val" id="darknessValue">30%</span>
+                </div>
+                <input type="range" id="darknessSlider" class="setting-slider" min="0" max="90" value="30" step="1" />
+                <div class="setting-hint">壁纸叠加的黑色遮罩</div>
+              </div>
+            </div>
+
+            <!-- 使用说明面板 -->
+            <div class="settings-panel" data-panel="help" hidden>
+              <div class="card-header"><h2>使用说明</h2></div>
+              <div class="about-text">
+
+                <p><strong>— 导航栏 —</strong></p>
+                <p><strong>页面切换</strong>：导航栏五个按钮分别对应首页、热点、排行、抽签、设置，点击即可切换页面。</p>
+                <p><strong>赛季切换</strong>：进入设置 → 赛季切换 → 下拉框选择「第一赛季」或「第二赛季」，切换后页面自动刷新并加载对应赛季的所有数据。</p>
+
+                <p><strong>— 关于卡片 —</strong></p>
+                <p><strong>数据源</strong>：网页打开时自动读取 .data/ 文件夹下的 C1.js（第一赛季）、C2.js（第二赛季）、HP.js（热点）三个文件作为正式数据源。</p>
+                <p><strong>版本信息</strong>：「版本信息」面板会显示第一赛季、第二赛季、热点数据各自的版本号。</p>
+
+                <p><strong>— 首页 —</strong></p>
+                <p><strong>人员卡</strong>：展示当前赛季已链接的人员名单。</p>
+                <p><strong>日历卡</strong>：中间卡片展示时间数据的日历视图。右上角 <code>↻</code> 按钮可随时回到今天（当选中日期不是今天时才显示）。</p>
+                <p><strong>项目卡</strong>：展示当前赛季已链接的项目列表。</p>
+
+                <p><strong>— 抽签页 —</strong></p>
+                <p><strong>名单卡</strong>：<br>
+                　· 下拉框切换当前名单<br>
+                　· <code>✎</code> 编辑按钮：重命名或删除当前名单<br>
+                　· <code>＋</code> 新建按钮：创建一个新名单<br>
+                　· 若无任何名单，点击 <code>＋</code> 新建第一个
+                </p>
+                <p><strong>人员卡</strong>：<br>
+                　· <code>✎</code> 编辑按钮：进入编辑模式，每行出现 <code>✎</code>（重命名）和 <code>✕</code>（删除）按钮<br>
+                　· <code>＋</code> 添加按钮：弹出输入框，可一次输入多人（每行一个，或用逗号 / 分号分隔）<br>
+                　· 人员列表支持拖拽排序
+                </p>
+                <p><strong>历史卡</strong>：<br>
+                　· 顶部标签可切换「历史」和「列表」两种视图<br>
+                　· 历史视图：记录每次抽取的结果，点击可查看详情；右上角 <code>×</code> 清空历史<br>
+                　· 列表视图：显示所有人的抽取情况（已抽 / 未抽），适合循环和列表模式；右上角按钮可清空列表记录
+                </p>
+                <p><strong>抽取模式</strong>：<br>
+                　· <strong>重复</strong>：每次抽取同一人，适合随机选人<br>
+                　· <strong>单次</strong>：一次性抽完所有人，每人只出现一次<br>
+                　· <strong>循环</strong>：循环抽取不同的人，所有人抽完后自动重置；可手动重置<br>
+                　· <strong>列表</strong>：连续抽完所有人并自动生成排名 1~n，动画时长减半；可手动重置
+                </p>
+                <p><strong>开始抽取</strong>：点击中央按钮，或按 <code>空格</code> / <code>回车</code> 快捷键。</p>
+
+                <p><strong>— 热点页 —</strong></p>
+                <p><strong>帖子列表卡</strong>：<br>
+                　· 顶部搜索框可按帖子标题或作者筛选<br>
+                　· 列表显示帖子标题、作者、发布时间等信息<br>
+                　· 点击帖子即可在中间卡片查看详情
+                </p>
+                <p><strong>详情卡</strong>：展示选中帖子的完整内容。</p>
+                <p><strong>评论卡</strong>：<br>
+                　· 默认显示帖子的评论楼层列表<br>
+                　· 点击某条评论可查看该楼层的完整对话<br>
+                　· 右上角 <code>×</code> 按钮返回评论列表
+                </p>
+
+                <p><strong>— 排行页 —</strong></p>
+                <p><strong>项目卡</strong>：左侧列表展示所有项目，点击切换查看该项目的成绩。</p>
+                <p><strong>总榜卡</strong>：中间卡片显示总排行榜，列出所有人员的成绩排名。</p>
+                <p><strong>成绩卡</strong>：右侧卡片显示当前选中项目的成绩表格。</p>
+
+                <p><strong>— 设置页 —</strong></p>
+                <p><strong>主题样式</strong>：<br>
+                　· <strong>深色模式</strong>：切换浅色 / 深色 / 自动（按时段自动切换）<br>
+                　· <strong>模糊度</strong>：调节玻璃卡片的模糊效果（0~80px）<br>
+                　· <strong>灰暗度</strong>：在背景上叠加暗色遮罩，数值越大卡片越突出
+                </p>
+                <p><strong>版本信息</strong>：<br>
+                　· 查看第一赛季、第二赛季、热点数据的导入版本
+                </p>
+
+              </div>
+            </div>
+
+            <!-- 赛季切换面板 -->
+            <div class="settings-panel" data-panel="season">
+              <div class="card-header"><h2>赛季切换</h2></div>
+              <div class="setting-item">
+                <label class="setting-label">赛季切换</label>
+                <div class="custom-select" id="seasonSelectWrap">
+                  <button type="button" class="custom-select-trigger" id="seasonSelectTrigger">
+                    <span class="custom-select-label" id="seasonSelectLabel">第二赛季</span>
+                    <span class="custom-select-arrow" data-icon="chevron-down"></span>
+                  </button>
+                  <div class="custom-select-dropdown" id="seasonSelectDropdown" hidden>
+                    <div class="custom-select-option" data-value="C1"><span class="opt-name">第一赛季</span></div>
+                    <div class="custom-select-option" data-value="C2"><span class="opt-name">第二赛季</span></div>
+                  </div>
+                </div>
+                <div class="setting-hint">切换后页面将自动刷新并加载对应赛季的数据。</div>
+              </div>
+            </div>
+
+            <!-- 版本信息面板 -->
+            <div class="settings-panel" data-panel="init" hidden>
+              <div class="card-header"><h2>版本信息</h2></div>
+              <div class="setting-item">
+                <div class="setting-row">
+                  <label class="setting-label">第一赛季 (C1)</label>
+                  <span class="setting-val" id="versionC1">未导入</span>
+                </div>
+                <div class="setting-row">
+                  <label class="setting-label">第二赛季 (C2)</label>
+                  <span class="setting-val" id="versionC2">未导入</span>
+                </div>
+                <div class="setting-row">
+                  <label class="setting-label">热点数据 (HP)</label>
+                  <span class="setting-val" id="versionHP">未导入</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 关于网站面板 -->
+            <div class="settings-panel" data-panel="about" hidden>
+              <div class="card-header"><h2>关于网站</h2></div>
+              <div class="card-scroll">
+                <div class="about-content">
+                  <div class="about-logo">
+                    <img src="img/web.png" alt="Logo" />
+                  </div>
+                  <div class="about-title">奥林PIG运动会官网</div>
+                  <div class="about-version">V1.100.000 Beta</div>
+
+                  <div class="about-avatar-grid">
+                    <div class="avatar-cell"><img src="hp/tx/炸鸡.jpg" alt="炸鸡" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/企鹅.jpg" alt="企鹅" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/猪.jpg" alt="猪" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/躺豆人.jpg" alt="躺豆人" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/彼得.jpg" alt="彼得" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/咖啡豆.jpg" alt="咖啡豆" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/洼洼.jpg" alt="洼洼" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/Tori.jpg" alt="Tori" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/myth.jpg" alt="myth" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/火锅.jpg" alt="火锅" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/miss.jpg" alt="miss" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/糖豆人.jpg" alt="糖豆人" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/掉线.jpg" alt="掉线" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/脆.jpg" alt="脆" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/桃夭.jpg" alt="桃夭" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/火星.jpg" alt="火星" /></div>
+                    <div class="avatar-cell"><img src="hp/tx/白玉汤.jpg" alt="白玉汤" /></div>
+                  </div>
+
+                  <div class="about-copyright">
+                    版权所有©煎炸的豬<br />
+                    <span class="about-responsibility">"探索の主宰"为此网站负责</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <aside class="col col-3">
+          <div class="card about-card">
+            <div class="card-header"><h2>关于</h2></div>
+            <div class="card-scroll">
+              <div class="about-content">
+                <div class="about-logo">
+                  <img src="img/web.png" alt="Logo" />
+                </div>
+                <div class="about-title">奥林PIG运动会官网</div>
+                <div class="about-version">V1.100.000 Beta</div>
+
+                <div class="about-avatar-grid">
+                  <div class="avatar-cell"><img src="hp/tx/炸鸡.jpg" alt="炸鸡" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/企鹅.jpg" alt="企鹅" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/猪.jpg" alt="猪" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/躺豆人.jpg" alt="躺豆人" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/彼得.jpg" alt="彼得" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/咖啡豆.jpg" alt="咖啡豆" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/洼洼.jpg" alt="洼洼" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/Tori.jpg" alt="Tori" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/myth.jpg" alt="myth" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/火锅.jpg" alt="火锅" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/miss.jpg" alt="miss" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/糖豆人.jpg" alt="糖豆人" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/掉线.jpg" alt="掉线" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/脆.jpg" alt="脆" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/桃夭.jpg" alt="桃夭" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/火星.jpg" alt="火星" /></div>
+                  <div class="avatar-cell"><img src="hp/tx/白玉汤.jpg" alt="白玉汤" /></div>
+                </div>
+
+                <div class="about-copyright">
+                  版权所有©煎炸的豬<br />
+                  <span class="about-responsibility">"探索の主宰"为此网站负责</span>
+                </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <nav class="bottom-nav">
+      <button type="button" class="nav-item active" data-view="home">
+        <span data-icon="home"></span>
+        <span>首页</span>
+      </button>
+      <button type="button" class="nav-item" data-view="hot">
+        <span data-icon="hot"></span>
+        <span>热点</span>
+      </button>
+      <button type="button" class="nav-item" data-view="rank">
+        <span data-icon="rank"></span>
+        <span>排行</span>
+      </button>
+      <button type="button" class="nav-item" data-view="draw">
+        <span data-icon="shuffle"></span>
+        <span>抽签</span>
+      </button>
+      <button type="button" class="nav-item" data-view="settings">
+        <span data-icon="settings"></span>
+        <span>设置</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Toast 容器（右上角向下堆叠，最多 3 个）-->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/liquidGlass.js?v=20260828b"></script>
+  <script src="js/common.js?v=20260828s"></script>
+  <script src="js/app.js?v=20260828p"></script>
+</body>
+</html>

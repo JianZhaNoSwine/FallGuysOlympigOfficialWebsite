@@ -1,0 +1,3124 @@
+/* ===== 字体 ===== */
+@font-face {
+  font-family: 'SegoeVariable';
+  src: url('../fonts/SegoeVariable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ===== 变量 ===== */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-bg-strong: rgba(255, 255, 255, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-highlight: rgba(255, 255, 255, 0.45);
+  --text: #ffffff;
+  --text-soft: rgba(255, 255, 255, 0.88);
+  --muted: rgba(255, 255, 255, 0.6);
+  --accent: #ffd54f;
+  --accent-2: #ffb300;
+  --success: #4caf50;
+  --success-bright: #5dd669;
+  --danger: #ff6b6b;
+  /* 卡片模糊度（可通过设置页滑块调节，默认较低以避免太过模糊）*/
+  --card-blur: 20px;
+  /* 壁纸灰暗度（0=不变暗，1=全黑，控制 .bg-overlay 的不透明度）*/
+  --bg-darkness: 0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+/* 保障带显式 display 的元素仍可被 hidden 属性隐藏（如链接标识 badge）*/
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+body {
+  font-family: 'SegoeVariable', "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  color: var(--text);
+  padding: 20px 20px 96px 20px;
+  overflow: hidden;
+  position: relative;
+  /* 壁纸由 JS 按 赛季 + 深浅色 动态设置（OP1Day/OP1Night/OP2Day/OP2Night），
+     此处仅保留 CSS 后备值 + background 尺寸参数 */
+  background: url('../img/OP2Day.png') center/cover no-repeat fixed;
+}
+body[data-effective="light"] {
+  background: url('../img/OP2Day.png') center/cover no-repeat fixed;
+}
+body[data-effective="dark"] {
+  background: url('../img/OP2Night.png') center/cover no-repeat fixed;
+}
+
+/* =========================================================
+   开屏 / 登录页（splash）—— 整屏展示，滑出后露出主页
+   ========================================================= */
+.jfes-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: transform 0.42s cubic-bezier(0.22, 0.9, 0.22, 1),
+              opacity  0.42s ease;
+  will-change: transform, opacity;
+}
+.jfes-splash-bg {
+  position: absolute;
+  inset: 0;
+  /* 与 body 壁纸同源；JS 启动后会同步 body.backgroundImage 到此层，
+     以便自动匹配 OP1/OP2 + 浅色/深色 */
+  background: url('../img/OP2Day.png') center/cover no-repeat fixed;
+  z-index: 0;
+}
+.jfes-splash-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.30);
+}
+.jfes-splash-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  text-align: center;
+  color: #fff;
+  /* 让内容整体有自然的"入场 90% 不透明度"，更有胶片质感 */
+  opacity: 0.96;
+}
+.jfes-splash-logo {
+  width: 520px;
+  height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.35));
+}
+.jfes-splash-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.jfes-splash-press {
+  margin-top: 4px;
+  font-size: 16px;
+  letter-spacing: 6px;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  animation: jfes-splash-blink 1.8s ease-in-out infinite;
+  user-select: none;
+}
+@keyframes jfes-splash-blink {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(0); }
+}
+.jfes-splash.slide-out-up {
+  transform: translateY(-102%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* =========================================================
+   防闪烁：body 带 jfes-splash-active（= 屏保还没 dismiss）时，
+   只让 splash + BGM audio 能看到，其他所有元素
+   visibility:hidden（仍然参与布局，offsetWidth 等可正确测量！
+   —— 这是关键：display:none 会让 LiquidGlass 初始化测量为 0x0）
+   pointer-events:none 防止用户点到首页底下的按钮/卡片。
+   ========================================================= */
+body.jfes-splash-active > *:not(#jfesSplash):not(audio):not(#bgmAudio) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+/* 另外把 .app 和所有 .view / .card 子项也叠一层 visibility，避免 CSSOM 反混淆 */
+body.jfes-splash-active .app,
+body.jfes-splash-active .app *,
+body.jfes-splash-active .bottom-nav,
+body.jfes-splash-active .bottom-nav * {
+  pointer-events: none !important;
+}
+/* splash 期间仍然保留下述，但壁纸交给 splash-bg，不重绘 body 光斑也无妨 */
+body.jfes-splash-active::before,
+body.jfes-splash-active::after {
+  opacity: 0 !important;
+}
+body.jfes-splash-active {
+  /* padding 保留正常数值，避免 body 尺寸变化导致 LiquidGlass 的 viewport 高度测量偏差 */
+  background-attachment: fixed;
+}
+
+/* 移动端尺寸压缩 */
+@media (max-width: 768px) {
+  .jfes-splash-logo { width: 400px; height: 400px; }
+  .jfes-splash-press { font-size: 14px; letter-spacing: 4px; }
+  .jfes-splash-content { gap: 22px; }
+}
+@media (max-width: 480px) {
+  .jfes-splash-logo { width: 320px; height: 320px; }
+  .jfes-splash-press { font-size: 12px; letter-spacing: 3px; }
+  .jfes-splash-content { gap: 18px; }
+}
+
+/* 装饰光斑（叠加在背景图上做氛围）*/
+body::before, body::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.25;
+  z-index: 0;
+  pointer-events: none;
+}
+body::before {
+  width: 420px; height: 420px;
+  background: #ff6ec4;
+  top: -120px; left: -120px;
+  animation: float 12s ease-in-out infinite;
+}
+body::after {
+  width: 520px; height: 520px;
+  background: #21d4fd;
+  bottom: -160px; right: -160px;
+  animation: float 15s ease-in-out infinite reverse;
+}
+@keyframes float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(50px, -40px); }
+}
+
+/* 壁纸暗化遮罩（在装饰光斑之上、卡片之下，由设置页的灰暗度滑块控制）*/
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: var(--bg-darkness, 0);
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.app {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+
+/* ===== 3 列布局 ===== */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ===== 液态玻璃卡片 ===== */
+.card {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--card-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--card-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  /* 仅保留内嵌高光描边，去掉外层投影 */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.08) inset;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.list-card { flex: 0 0 auto; overflow: visible; z-index: 10; }
+.people-card { flex: 1 1 auto; min-height: 0; z-index: 1; }
+.draw-card { flex: 1 1 auto; min-height: 0; align-items: center; text-align: center; }
+.history-card { flex: 1 1 auto; min-height: 0; }
+
+/* ===== 卡片头部 ===== */
+.card-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+  min-height: 34px;  /* 与 .glass-btn.round 高度对齐，保证各卡片标题垂直居中位置一致 */
+}
+.card-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-soft);
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  position: relative;
+}
+/* 卡片标题后的统计计数：不跟随标题居中，附在标题右侧 */
+.card-header h2 .title-count {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translate(4px, -50%);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* header-actions 默认靠右对齐（单个按钮时在右侧）*/
+.card-header .header-actions {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 34px;
+}
+/* 当有 2 个可见按钮时：第一个左对齐，第二个右对齐 */
+.card-header .header-actions:has(> .glass-btn.round:nth-child(2):not([hidden])) {
+  left: 0;
+  right: 0;
+  justify-content: space-between;
+  gap: 0;
+}
+/* 评论卡独立返回按钮也绝对定位 */
+.card-header > .glass-btn.round {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* ===== 统一玻璃按钮 ===== */
+.glass-btn {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.2s, color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+  border-radius: 14px;
+  padding: 9px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.glass-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.glass-btn:active { transform: scale(0.94); }
+.glass-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.glass-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+.glass-btn.round {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+}
+.glass-btn.round svg { width: 16px; height: 16px; }
+/* 日历卡片右上角「今天」按钮已改为普通 glass-btn round 样式（与抽签列表分享按钮同款），不再单独金色高亮
+   保留占位注释，避免与上面 round svg 尺寸规则错位 */
+
+.glass-btn.pill { border-radius: 999px; }
+
+.glass-btn.lg {
+  padding: 14px 40px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.glass-btn.active {
+  background: rgba(255, 213, 79, 0.9);
+  color: #1a1a1a;
+  border-color: rgba(255, 213, 79, 0.6);
+}
+
+.glass-btn.danger {
+  color: var(--danger);
+  border-color: rgba(255, 107, 107, 0.45);
+}
+.glass-btn.danger:hover { background: rgba(255, 107, 107, 0.22); }
+
+.glass-btn.win {
+  background: rgba(93, 214, 105, 0.22);
+  border-color: rgba(93, 214, 105, 0.6);
+  color: var(--success-bright);
+  box-shadow: 0 8px 24px rgba(93, 214, 105, 0.35);
+}
+
+/* ===== 自定义液态玻璃下拉（名单 / 主题选择共用）===== */
+.custom-select {
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+.custom-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+.custom-select-trigger:hover { background: rgba(255, 255, 255, 0.14); }
+.custom-select-trigger:active { transform: scale(0.99); }
+.custom-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 213, 79, 0.2);
+}
+/* 抽签页名单选择框 trigger：与人员卡片 .person-item 视觉样式完全一致 */
+#listSelectWrap .custom-select-trigger,
+/* 设置页深色模式 / 赛季切换：统一用扁平风格 */
+#themeSelectWrap .custom-select-trigger,
+#seasonSelectWrap .custom-select-trigger {
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+#listSelectWrap .custom-select-trigger:hover,
+#themeSelectWrap .custom-select-trigger:hover,
+#seasonSelectWrap .custom-select-trigger:hover { background: rgba(255, 255, 255, 0.14); }
+#listSelectWrap .custom-select-trigger:active,
+#themeSelectWrap .custom-select-trigger:active,
+#seasonSelectWrap .custom-select-trigger:active { transform: none; }
+#listSelectWrap .custom-select-trigger:focus-visible,
+#themeSelectWrap .custom-select-trigger:focus-visible,
+#seasonSelectWrap .custom-select-trigger:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+.custom-select-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.custom-select-arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.2s;
+}
+.custom-select-arrow svg { width: 16px; height: 16px; display: block; }
+.custom-select.open .custom-select-arrow { transform: rotate(180deg); }
+
+.custom-select-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(20, 20, 40, 0.75);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 12px 40px rgba(0, 0, 0, 0.4);
+  padding: 5px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 20;
+  animation: dropIn 0.18s ease;
+}
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.custom-select-dropdown[hidden] { display: none; }
+.custom-select-option {
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-soft);
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.custom-select-option:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+.custom-select-option.active {
+  /* 名单选择框下拉内 active 项不再高亮，与季节/主题等其他下拉列表视觉一致 */
+  background: transparent;
+  color: inherit;
+}
+.custom-select-option.active:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+.custom-select-option .opt-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* opt-name 占满剩余空间并左对齐，使文本紧接 link-badge，避免被 space-between 推到右侧 */
+.custom-select-option .opt-name { flex: 1; min-width: 0; }
+/* 设置卡片放开 overflow，允许主题下拉正常展开并与 trigger 对齐；圆角不会因可见内容溢出而破相 */
+.settings-layout .card {
+  overflow: visible;
+}
+/* 深色模式下拉面板适配：覆盖默认背景色/边框，保证选项在深色模式下清晰可读 */
+body[data-effective="dark"] #themeSelectDropdown {
+  background: rgba(15, 15, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ===== 列表容器 ===== */
+.list-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;   /* 永不出现横向滚动条：条目位移动画不会闪一下横滚条；文字过宽 word-break 保证自动换行 */
+  margin: -4px;
+  padding: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== 人员列表 ===== */
+.people-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.person-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.person-item:hover { background: rgba(255, 255, 255, 0.14); }
+.person-item.highlight {
+  background: rgba(255, 213, 79, 0.25);
+  border-color: var(--accent);
+  transform: scale(1.02);
+}
+.person-item .index {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.person-item .name {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 10px;
+  opacity: 0.7;
+  line-height: 1.6;
+}
+
+/* ===== 抽取卡内容 ===== */
+.draw-content {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;  /* 人名居中 */
+  gap: 22px;
+  padding: 8px 0;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+.result {
+  font-size: clamp(48px, 8vw, 96px);
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 255, 255, 0.25);
+  line-height: 1.15;
+  word-break: break-all;
+  min-height: 1.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  transition: color 0.2s, text-shadow 0.2s, opacity 0.2s;
+  cursor: pointer;   /* 点击抽取：表明可点击 */
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.result.placeholder {
+  font-size: clamp(40px, 6vw, 72px);
+  color: #ffffff;
+  font-weight: 300;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 40px rgba(255, 255, 255, 0.2);
+  opacity: 0.9;
+}
+.result.spinning {
+  animation: shake 0.08s linear infinite;
+  cursor: not-allowed;   /* 抽取过程中：禁止再点击（视觉提示） */
+  pointer-events: none;  /* 彻底阻断点击事件，防止重复触发 */
+}
+.result.pop { animation: pop 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+/* 抽完后 5 秒胜利效果：恢复绿色文字 + 绿色光晕（用户要求保留），5 秒后 win class 移除回到白色 */
+.result.win {
+  color: var(--success-bright);
+  text-shadow: 0 4px 30px rgba(93, 214, 105, 0.7);
+}
+.result.pop.win {
+  animation:
+    pop 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both,
+    winGlow 1.2s ease-in-out 0.5s infinite;
+}
+@keyframes winGlow {
+  0%, 100% { text-shadow: 0 4px 30px rgba(93, 214, 105, 0.5); }
+  50%      { text-shadow: 0 4px 50px rgba(93, 214, 105, 0.95), 0 0 80px rgba(93, 214, 105, 0.4); }
+}
+
+.draw-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;  /* 抽取按钮与刻度条之间留出间距 */
+  width: 100%;
+  padding-top: 0;
+  position: relative;
+  z-index: 1;
+}
+/* 隐藏原「开始抽取」按钮 —— 改为点击中间问号/名字直接抽取，DOM 保留不删避免 JS 引用异常 */
+#drawBtn { display: none !important; }
+.mode-hint {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.8;
+  min-height: 14px;
+  text-align: center;
+}
+/* ===== 模式刻度选择器（hint 显示在选中刻度下方）===== */
+.mode-scale {
+  width: 100%;
+  max-width: 340px;
+  position: relative;
+  margin-top: 0;  /* 刻度向下移动，与抽取按钮之间留出间距 */
+}
+.mode-scale-bar {
+  position: absolute;
+  top: 5px;
+  left: 12.5%;
+  right: 12.5%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  z-index: 0;
+}
+.mode-scale-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 2px;
+  transition: width 0.35s cubic-bezier(0.2, 1.1, 0.4, 1);
+}
+.mode-scale-btns {
+  display: flex;
+  position: relative;
+  z-index: 1;
+}
+.mode-scale-btns button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0 0 18px;  /* 底部预留 hint 空间，避免布局抖动 */
+  position: relative;
+  transition: transform 0.1s;
+}
+.mode-scale-btns button:active { transform: scale(0.92); }
+.mode-scale-btns button .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transition: all 0.25s;
+}
+.mode-scale-btns button .label {
+  font-size: 12px;
+  color: var(--muted);
+  transition: color 0.2s, font-weight 0.2s;
+}
+/* 功能说明：默认隐藏，仅当前选中刻度显示在其下方 */
+.mode-scale-btns button .hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.mode-scale-btns button:hover .dot { background: rgba(255, 255, 255, 0.6); }
+.mode-scale-btns button:hover .label { color: var(--text-soft); }
+.mode-scale-btns button.active .dot {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12);
+  transform: scale(1.15);
+}
+.mode-scale-btns button.active .label {
+  color: var(--text);
+  font-weight: 600;
+}
+.mode-scale-btns button.active .hint {
+  opacity: 1;
+}
+
+/* ===== 历史卡 ===== */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: hidden;  /* 结果条/历史条即使有 transform 动画，横向绝不溢出，防止闪现横滚条 */
+}
+.history-item {
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.history-item:hover { background: rgba(255, 255, 255, 0.12); }
+.history-item.latest {
+  background: rgba(255, 213, 79, 0.22);
+  border-color: var(--accent);
+}
+.history-item .name {
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
+}
+.history-item .list {
+  font-size: 11px;
+  color: var(--text-soft);
+  word-break: break-all;
+}
+.history-item .meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ===== 列表抽取结果（与人员卡片列表样式一致）===== */
+.list-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.15s, border-color 0.15s;
+  /* 移除 slideIn 入场位移动画：防止动画 from { translateX(+20px) } 触发父容器短暂出现横向滚动条 */
+  animation: none;
+}
+.list-rank-item:hover { background: rgba(255, 255, 255, 0.14); }
+.list-rank-item .rank {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 22px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.list-rank-item .name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
+}
+/* slideIn 关键帧保留（其他组件若需要可复用），但列表排名卡片不再使用，防止溢出横滚条 */
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+/* ===== 底部导航栏（液态玻璃由 js/liquidGlass.js 的 WebGL 引擎绘制，
+   容器玻璃胶囊 + 滑动指示器折射 + 边缘高光；DOM 层保持完全透明）===== */
+.bottom-nav {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateZ(0);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  z-index: 50;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.bottom-nav .nav-glass-canvas {
+  image-rendering: optimizeQuality;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 13px 20px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.nav-item svg {
+  width: 20px;
+  height: 20px;
+  shape-rendering: geometricPrecision;
+  display: block;
+}
+.nav-item span:not([data-icon]) { display: none; }
+.nav-item > span[data-icon] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+/* 图标/文字容器：JS 按压时对其施加 lerp(1→1.2) 缩放 */
+.nav-item > span { will-change: transform; }
+.nav-item:hover { color: #fff; }
+.nav-item.active {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ===== 设置页布局（每列单卡片，撑满列高）===== */
+.view-settings .col > .card {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 深色模式下拉框 (custom-select-dropdown absolute top:100%+6px) 需要弹出卡片外显示
+     真正的滚动交给 .settings-panel[data-panel="help" / "link"] 内部 overflow-y:auto */
+  overflow: visible;
+}
+
+/* 卡片内可滚动区域 */
+.card-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.card-scroll::-webkit-scrollbar { width: 4px; }
+.card-scroll::-webkit-scrollbar-track { background: transparent; }
+.card-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 2px; }
+
+/* 分节分割线 */
+.user-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  margin: 16px 0;
+}
+
+/* 用户卡片内分节标题 */
+.user-about h3,
+.user-links h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 10px 0;
+  letter-spacing: 0.5px;
+}
+
+/* ===== 用户资料卡 ===== */
+.user-profile-card { text-align: center; }
+.user-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.user-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #8a5cff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(138, 92, 255, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.avatar-initials {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.user-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 4px;
+}
+.user-tagline {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.user-stats {
+  display: flex;
+  gap: 20px;
+  margin-top: 12px;
+  justify-content: center;
+  width: 100%;
+}
+.user-stats .stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.stat-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+/* ===== 关于卡 ===== */
+.about-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.about-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--accent);
+  opacity: 0.85;
+}
+.about-content p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-soft);
+  margin: 0;
+}
+
+/* ===== 链接卡 ===== */
+.social-links {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.social-link {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text);
+  transition: background 0.2s, transform 0.2s;
+}
+.social-link:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+}
+.social-link span {
+  width: 20px;
+  height: 20px;
+}
+
+/* ===== 设置分类（选中样式参考历史卡 latest：黄色描边）===== */
+.settings-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-category {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.settings-category:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.settings-category:active { transform: scale(0.99); }
+.settings-category.active {
+  background: rgba(255, 213, 79, 0.22);
+  border-color: var(--accent);
+}
+.settings-category .name {
+  font-size: 14px;
+  color: var(--text-soft);
+  transition: color 0.2s;
+}
+.settings-category.active .name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ===== 设置面板（按分类切换显示）===== */
+.settings-panel[hidden] { display: none; }
+.settings-panel { flex: 1 1 auto; min-height: 0; }
+.settings-panel .card-header { margin-bottom: 14px; }
+/* 使用说明 / 数据链接面板内容可能较长，内部滚动；其余面板保持可见以放行主题下拉 */
+.settings-panel[data-panel="help"],
+.settings-panel[data-panel="link"] {
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* ===== 设置项（设置面板内复用）===== */
+.setting-item {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setting-item + .setting-item { margin-top: 12px; }
+.setting-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-soft);
+  letter-spacing: 0.5px;
+}
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.setting-val {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+}
+.setting-val.muted {
+  color: rgba(255, 255, 255, 0.45);
+}
+.setting-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.setting-hint {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+/* 设置项内的按钮左对齐，不撑满 */
+.setting-item .glass-btn { align-self: flex-start; }
+
+/* ===== 链接标识 badge（抽签页名单下拉前）===== */
+.link-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.link-badge svg { width: 14px; height: 14px; display: block; }
+/* trigger 与 option 的 badge 右间距统一为 2px，视觉间距一致（= flex gap 8 + 2 = 10px）*/
+.custom-select-trigger .link-badge,
+.custom-select-option .link-badge { margin-right: 2px; }
+/* 抽签页隐藏所有链接标识 */
+.view-draw .link-badge { display: none; }
+
+/* ===== 数据链接面板：已链接名单展示 ===== */
+.link-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.link-block {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.link-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.link-block-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.link-block-name .link-badge svg { width: 13px; height: 13px; }
+.link-block-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.25);
+  color: var(--danger);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.link-block-del:hover { background: rgba(255, 107, 107, 0.25); }
+.link-block-del svg { width: 12px; height: 12px; display: block; }
+.link-block-txt {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  user-select: text;
+}
+.link-empty {
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ===== 数据链接面板：按分类分区（人员/项目/时间/抽签）===== */
+.link-section { display: flex; flex-direction: column; gap: 8px; }
+.link-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 2px 4px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ===== 选分类弹窗（选文件后选择 人员/项目/时间/抽签）===== */
+.link-cat-file {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+.link-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.link-cat-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-size: 14px;
+}
+.link-cat-option input { display: none; }
+.link-cat-option:hover { background: rgba(255, 255, 255, 0.12); }
+.link-cat-option.active {
+  background: rgba(255, 213, 79, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ===== 首页选数据弹窗 ===== */
+.link-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+/* 清空链接选项（危险风格，置顶）*/
+.link-clear-option {
+  color: var(--danger);
+  border-color: rgba(255, 107, 107, 0.3) !important;
+}
+.link-clear-option:hover {
+  background: rgba(255, 107, 107, 0.15) !important;
+}
+.link-clear-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.link-clear-icon svg { width: 14px; height: 14px; display: block; }
+
+/* ===== 首页日历卡片特殊布局 ===== */
+.view-home .home-card .card-header {
+  flex: 0 0 auto;
+}
+/* 仅日历卡片的 list-wrap 需要完全填充；黄框 4px 外框移到外层卡片绘制，内层保留正常裁切不触发任何滚动 */
+.view-home .home-card .list-wrap:has(#homeCalendar) {
+  margin: 0; padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;     /* 日历行高在小屏可能超出卡片视口：允许上下滚动查看完整周表，横向仍 hidden 避免横滚条 */
+  flex: 1 1 auto;
+}
+/* 日历卡片去除底部 padding，让表格填满卡片；
+   同时相对定位：#calTodayFrame 绝对定位覆盖层将挂在卡片层级（卡片外层没 overflow:hidden → 4px 边框永远完整，不被切）*/
+.view-home .home-card:has(#homeCalendar) {
+  padding-bottom: 12px;
+  position: relative;
+}
+#homeCalendar {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-size: 14px;
+  overflow: hidden;
+  color: #fff;
+}
+/* 日历表格：禁止随 #homeCalendar flex 拉伸，保持按行内 JS 行高分配的精确高度 */
+#homeCalendar > .cal-table {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 0;
+}
+.cal-table {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: #fff;
+}
+/* 表头行 */
+.cal-table .cal-header-row .cal-head-cell {
+  border: 1px solid #fff;
+  padding: 4px 3px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.06);
+}
+.cal-table .cal-header-row .cal-head-month {
+  width: 32px;
+}
+/* 日期行 + 日程行 */
+.cal-table .cal-week-row .cal-cell {
+  border: 1px solid #fff;
+  padding: 4px 3px;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.4;
+  word-break: break-all;
+  color: #fff;
+}
+/* 月份列（竖排文字 + rowspan）*/
+.cal-table .cal-week-row .cal-month-cell {
+  width: 32px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+  writing-mode: vertical-rl;
+  -webkit-writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  padding: 6px 4px;
+}
+/* 日期行 */
+.cal-table .cal-week-row .cal-day-cell {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+/* 日期空日程单元格（无日程，仅显示日期数字）*/
+.cal-table .cal-week-row .cal-day-empty {
+  background: rgba(255, 255, 255, 0.02);
+}
+/* 有日程的日期行：去掉底部边框，与下方日程单元格之间无分隔线 */
+.cal-table .cal-week-row .cal-day-cell.has-sched-below {
+  border-bottom: 0;
+}
+/* 日程行空单元格（占位，保证列对齐）*/
+.cal-table .cal-sched-row .cal-sched-empty {
+  background: transparent;
+}
+/* 日程行 */
+.cal-table .cal-sched-row .cal-sched-cell {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #fff;
+  padding: 4px 3px;
+}
+.cal-table .cal-sched-row .cal-sched-cell.has-sched {
+  font-weight: 600;
+  border-top: 0;  /* 与上方日期单元格之间无分隔线（collapse 模式双保险）*/
+}
+/* 选中日期的日期+日程单元格：中间衔接线完全擦除（无线融合），仅靠外层 #calTodayFrame 金黄圆角覆盖层作唯一高亮，
+   不再在内部画任何黄色线（避免「黄框里多加黄横线」的叠加视觉）。用 !important 覆盖上游 border:0 规则（反向强制 = 0 也加上） */
+.cal-table .cal-cell.cal-today {
+  border: 1px solid #fff;
+}
+.cal-table .cal-cell.cal-today-top {
+  border-top: 1px solid #fff !important;
+  border-left: 1px solid #fff !important;
+  border-right: 1px solid #fff !important;
+  border-bottom: 0 !important;   /* 日期 cell 底完全擦掉中间线，让日期与下面日程视觉融合成一块，只靠外黄框框住 */
+}
+.cal-table .cal-cell.cal-today-bottom {
+  border-top: 0 !important;        /* 日程 cell 顶同样擦掉中间线（上下同时 = 0 避免 collapse 后残留 1px） */
+  border-left: 1px solid #fff !important;
+  border-right: 1px solid #fff !important;
+  border-bottom: 1px solid #fff !important;
+}
+/* 续接链日期列底边：同样不要内部黄横线，保持融合 */
+.cal-table .cal-cell.cal-chain-today-top {
+  border-bottom: 0 !important;
+}
+/* 日历今日整体高亮框：绝对定位覆盖层，精确贴合 2 格合并外框 / 单格外框，位于 table 容器层级 */
+#calTodayFrame {
+  position: absolute;
+  border: 4px solid #ffd54f;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 50;
+  box-sizing: border-box;
+  /* 动画：与整体节奏一致；resize/render 时平滑过渡到新位置 */
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+/* ===== 首页项目卡片：竖排刻度样式（严格镜像 mode-scale 旋转 90°）===== */
+/* mode-scale 参考：bar 3px + rgba(255,255,255,0.18)；dot 10px + rgba(0.35)；active dot box-shadow 4px halo + scale(1.15)；bar 左右留 12.5%（竖排则上下） */
+#homeProjectsList {
+  position: relative;
+  list-style: none;
+}
+/* 连续背景条：用像素 margin 贴近首末条目标圆点中心（底色半透明灰 = 未来部分的视觉参考系）*/
+#homeProjectsList::before {
+  content: "";
+  position: absolute;
+  left: 6px;       /* 再整体左移 2px（8→6）；与圆点 left=3、3px 线段 left=7 保持中心 x≈8 对齐 */
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  z-index: 0;
+  pointer-events: none;
+}
+/* 旧版整根白填充 ::after 已移除：改为 JS 覆盖层 #pgLinesOverlay 按相邻圆点分段绘制（白线接黄线接半透明灰底，三段语义清晰）
+   显式清空 ::after 防止旧浏览器残留 height/渐变 */
+#homeProjectsList::after { content: none; }
+#homeProjectsList.pg-animate::after { content: none; }
+.project-gauge-item {
+  position: relative;
+  padding: 4px 0;
+  padding-left: 22px;     /* 再缩小 4px 左 padding（26→22），配合圆点/刻度整体左移，更贴卡片左边缘 */
+  min-height: 22px;
+}
+.project-gauge-item .pg-fill {
+  display: none;
+}
+/* 圆点：黯淡基础色（未映射/未来态）— left 同步再左移 2px（5 → 3），中心 x = 3 + 5 = 8，
+   3px 竖条（x=6~8 背景条 + x=7~9 分段前景色条）中心 ≈ x=7~7.5，近似对齐 */
+.project-gauge-item .pg-dot {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  z-index: 2;
+  transition: background 0.25s, transform 0.25s, box-shadow 0.25s;
+}
+/* 过去的项目：圆点白色柔和（刻度已走过） */
+.project-gauge-item.linked.state-past .pg-dot {
+  background: rgba(255, 255, 255, 0.78);
+  transform: scale(1);
+}
+/* 今天正在进行的项目：圆点金黄 + halo + 放大（对应 mode-scale active） */
+.project-gauge-item.linked.state-today .pg-dot {
+  background: rgba(255, 213, 79, 0.95);
+  box-shadow: 0 0 0 4px rgba(255, 213, 79, 0.18);
+  transform: scale(1.15);
+}
+/* 将来的项目：圆点保留黯淡（默认状态），仅微弱可见 */
+.project-gauge-item.linked.state-future .pg-dot {
+  background: rgba(255, 255, 255, 0.3);
+}
+.project-gauge-item .pg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.project-gauge-item .pg-name {
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
+  color: var(--text);
+  line-height: 1.4;
+}
+.project-gauge-item .pg-tags {
+  font-size: 11px;
+  color: var(--text-soft);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* ===== 视图切换（不重新加载页面）===== */
+.view { height: 100%; }
+.view[hidden] { display: none; }
+/* 设置页：滚动交给各 .settings-panel 内部（help/link 已设 overflow-y:auto），避免下拉框被裁 */
+.view-settings {
+  overflow: visible;
+}
+
+/* 桌面端隐藏"关于网站"分类项（col-3 的关于卡片常驻显示，无需重复入口）*/
+.view-settings .settings-category[data-category="about"] {
+  display: none;
+}
+
+/* 首页/热点/排行：每列单卡片，撑满列高（仅 col-2、col-3，避免覆盖 col-1 内 list-card / people-card 的 flex 分配）*/
+.view-home .col-2 > .card, .view-home .col-3 > .card,
+.view-hot .col-2 > .card, .view-hot .col-3 > .card,
+.view-rank .col-2 > .card, .view-rank .col-3 > .card {
+  flex: 1 1 auto;
+}
+
+/* 首页第 1 列仅一张人员卡片，同样撑满列高，与中列日历卡片底部对齐 */
+.view-home .col-1 > .card {
+  flex: 1 1 auto;
+}
+
+/* 热点页第 1 列同样撑满列高，与中列详情卡片底部对齐 */
+.view-hot .col-1 > .card {
+  flex: 1 1 auto;
+}
+
+/* 卡片标题居中（日历 / 成绩）*/
+.card-header.center {
+  justify-content: center;
+}
+
+/* 单行文本输入框（网页命名等）*/
+.text-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+.text-input::placeholder { color: var(--muted); }
+.text-input:focus { border-color: var(--accent); }
+
+/* ===== 排行页：成绩表格 ===== */
+.rank-table-card { display: flex; flex-direction: column; }
+.rank-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: -4px;
+  padding: 4px;
+  position: relative;
+  z-index: 1;
+}
+.rank-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  color: var(--muted);
+  font-size: 13px;
+  opacity: 0.7;
+}
+.rank-table-container {
+  /* padding handled by rank-table-wrap */
+}
+.rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.rank-table th,
+.rank-table td {
+  padding: 4px 3px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #fff;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.rank-table th {
+  position: sticky;
+  top: 0;
+  font-weight: 700;
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06);
+}
+.rank-table td { color: #fff; }
+.rank-table tr:hover td { background: rgba(255, 255, 255, 0.06); }
+/* 奖牌行高亮：仅文字变色 */
+.rank-table tr.medal-gold td { color: #ffd86b !important; }
+.rank-table tr.medal-silver td { color: #dcdcdc !important; }
+.rank-table tr.medal-bronze td { color: #e8a060 !important; }
+.rank-table tr.medal-gold td,
+.rank-table tr.medal-silver td,
+.rank-table tr.medal-bronze td {
+  font-weight: 600;
+}
+/* 排行页选中项高亮 */
+.view-rank .person-item.selected {
+  background: rgba(255, 213, 79, 0.22);
+  border-color: var(--accent);
+}
+/* 排行页可点击项（总排行 / 分榜项）：悬停显示点击指针 */
+.view-rank .person-item {
+  cursor: pointer;
+}
+
+/* ===== 排行页右列：水军榜 / 关怀榜（两榜各占 50%，直接展示完整排名，内部滚动）===== */
+.rank-top-card {
+  gap: 12px;
+}
+/* 卡片内间距统一交给 gap，避免 header 自带 margin-bottom 叠加 */
+.rank-top-card .card-header {
+  margin-bottom: 0;
+}
+.rank-board {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rank-board-title {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.rank-board-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: -4px;
+  padding: 4px;
+}
+.rank-board-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* 与热点评论 .hp-comment-list 的项间距一致 */
+}
+/* 项内部间距与评论项一致（头像↔文字 10px，无额外内边距） */
+.rank-board-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+.rank-board-idx {
+  font-size: 15px; /* 与「排名」二字大小一致 */
+  color: #fff;
+  min-width: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* 头像尺寸与热点帖子评论里一致（.hp-comment-avatar 40px），不再缩小 */
+.rank-board-name {
+  flex: 1;
+  font-size: 15px; /* 与「排名」二字大小一致 */
+  color: #fff;
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank-board-count {
+  flex-shrink: 0;
+  font-size: 15px; /* 与「排名」二字大小一致 */
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+/* 第 1 名整行文字金色 */
+.rank-board-item.top1 .rank-board-idx,
+.rank-board-item.top1 .rank-board-name,
+.rank-board-item.top1 .rank-board-count {
+  color: #ffd86b;
+}
+.rank-board-empty {
+  text-align: center;
+  color: #fff;
+  font-size: 13px;
+  padding: 14px 8px;
+  opacity: 0.7;
+}
+/* ===== Toast 容器（右上角向下堆叠，最多 3 个）===== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 200;
+  pointer-events: none;
+  max-width: min(320px, 80vw);
+}
+.toast {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  font-size: 14px;
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: slideInRight 0.25s ease;
+  word-break: break-all;
+}
+.toast.hiding {
+  animation: slideOutRight 0.25s ease forwards;
+}
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(120%); opacity: 0; }
+}
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  animation: fadeIn 0.15s ease;
+}
+.modal {
+  background: linear-gradient(135deg, rgba(50, 50, 100, 0.7), rgba(28, 28, 55, 0.7));
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: modalIn 0.22s cubic-bezier(0.2, 1.1, 0.4, 1);
+}
+.modal h3 { font-size: 17px; margin-bottom: 14px; }
+.modal-message {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.modal-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.modal textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.modal textarea:focus { border-color: var(--accent); }
+.modal input[type="text"] {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 16px;
+  font-family: inherit;
+}
+.modal input[type="text"]:focus { border-color: var(--accent); }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* ===== 项目-日程一一映射弹窗 ===== */
+.modal-cal-map {
+  max-width: 640px;
+  /* 整个 modal 统一滚动（内部不设滚动容器），避免下拉面板被裁切；同时保持 max-height 防溢出 */
+  max-height: 90vh;
+  overflow-y: auto;
+  overflow-x: visible;
+}
+.modal-cal-map h4 {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 10px 0;
+  font-weight: 500;
+}
+/* 线性单列表（布局：日历下拉 → 分类筛选 → 项目行）：overflow 可见，允许下拉面板无裁切溢出 */
+.cal-map-single-col {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  overflow: visible;
+}
+/* 日历下拉/分类筛选条：统一胶囊，间距一致 */
+.cal-cat-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 8px;
+  border: 1px solid var(--glass-border);
+  overflow: visible;  /* 防止下拉被胶囊条裁切 */
+}
+.cal-calendar-row {
+  /* 可以给日历行加稍高的视觉权重，与其它筛选条区分（可选） */
+}
+.cal-cat-label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  width: 62px;
+}
+/* ===== 弹窗内合成式下拉（与主题选择器同一套液态玻璃组件）=====
+   使用已经存在的 .custom-select / .custom-select-trigger / .custom-select-dropdown 样式，
+   只补布局（flex 填充宽度、允许溢出以正确显示下拉面板）。 */
+.cal-cat-filter .custom-select {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+.cal-map-row .custom-select {
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+/* 打开的下拉容器提升 z-index，使其浮在其他行之上 */
+.custom-select.open {
+  z-index: 999;
+}
+/* 弹窗外层 overflow 可见（由 .modal-cal-map 自身承担滚动） */
+.cal-map-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: visible;
+}
+.cal-map-row {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: visible;  /* 下拉可越过行边界 */
+}
+.cal-map-proj {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.cal-map-proj-name {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  word-break: break-all;
+}
+.cal-map-proj-tags {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}
+@media (max-width: 560px) {
+  .cal-cat-label { width: 56px; font-size: 12px; }
+  .cal-map-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+/* 编辑/名单弹窗内的分段小标题 */
+.sub-section-title {
+  font-size: 12px;
+  color: var(--accent);
+  margin: 18px 0 8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.edit-list {
+  list-style: none;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edit-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative; /* drop 指示线伪元素定位基准 */
+}
+.edit-list li .name {
+  flex: 1;
+  font-size: 14px;
+  word-break: break-all;
+}
+/* 弹窗名单名前的链接标识与文本间距 */
+.edit-list li .name .link-badge { margin-right: 6px; }
+
+/* ===== 拖拽手柄（三横杠）与排序指示线 ===== */
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: grab;
+  padding: 2px;
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.drag-handle:hover { color: var(--text-soft); }
+.drag-handle svg { width: 16px; height: 16px; display: block; }
+.edit-list li.dragging { opacity: 0.4; }
+.edit-list li.drop-above::before,
+.edit-list li.drop-below::after {
+  content: "";
+  position: absolute;
+  left: 10px; right: 10px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+.edit-list li.drop-above::before { top: -1px; }
+.edit-list li.drop-below::after { bottom: -1px; }
+.edit-list li input.edit-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+.edit-list li .actions { display: flex; gap: 4px; }
+.edit-list li .actions button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 14px;
+  border-radius: 6px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.edit-list li .actions button svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.edit-list li .actions button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.18);
+}
+.edit-list li .actions button.danger:hover { color: var(--danger); }
+
+/* ===== 动画 ===== */
+@keyframes shake {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  25%  { transform: translate(-2px, 1px) rotate(-1deg); }
+  50%  { transform: translate(2px, -1px) rotate(1deg); }
+  75%  { transform: translate(-1px, 2px) rotate(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@keyframes pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ===== 使用说明文本（设置页 help 面板复用）===== */
+/* 使用说明：去掉卡片背景与边框，融入设置面板 */
+.about-text {
+  padding: 4px 4px 0 4px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-soft);
+}
+.about-text p { margin-bottom: 8px; }
+.about-text code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 900px) {
+  html, body { height: auto; min-height: 100%; overflow: auto; }
+  body { padding: 14px 14px 96px 14px; }
+  .view { height: auto; min-height: 100%; }
+  .view-draw { overflow: visible; }
+  .layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .col { gap: 12px; }
+  .list-card, .people-card, .history-card {
+    flex: 0 0 auto;
+    min-height: 180px;
+  }
+  .draw-card { min-height: 440px; flex: 0 0 auto; }
+  .result { font-size: clamp(40px, 12vw, 80px); }
+  .nav-item { padding: 12px 14px; }
+
+  /* ======== 首页移动端专属优化 ======== */
+  /* 1) 卡片顺序：日历(col-2) → 项目(col-3) → 人员(col-1) */
+  .view-home .layout > .col-1 { order: 3; }
+  .view-home .layout > .col-2 { order: 1; }
+  .view-home .layout > .col-3 { order: 2; }
+
+  /* 2) 日历卡片：高度自适应内容 */
+  .view-home .col-2 > .home-card,
+  .view-home .col-1 > .home-card {
+    flex: 0 0 auto;
+    height: auto;
+  }
+  .view-home .home-card .list-wrap:has(#homeCalendar) {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    height: auto;
+  }
+  #homeCalendar { flex: none; height: auto; min-height: 0; }
+
+  /* 3) 人员卡片：高度自适应 */
+  .view-home .col-1 > .home-card .list-wrap {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+
+  /* 4) 项目卡片：横向刻度 + 左右滑动 + 内容自适高度 */
+  .view-home .col-3 > .home-card {
+    flex: 0 0 auto;
+    height: auto;
+  }
+  .view-home .col-3 > .home-card .list-wrap {
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: visible;
+    height: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  #homeProjectsList {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0;
+    padding: 26px 16px 4px 16px;
+    position: relative;
+    scrollbar-width: thin;
+  }
+  /* 横向刻度轨道（代替竖排 ::before）*/
+  #homeProjectsList::before {
+    left: 16px;
+    right: 16px;
+    top: 8px;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    border-radius: 2px;
+  }
+  /* JS 绘制的横排分段覆盖层：允许 inline-style 控制 left/width/top */
+  #pgLinesOverlay { display: block !important; }
+  /* 每个项目条目：水平排列，圆点在上方居中 */
+  #homeProjectsList .project-gauge-item {
+    flex: 0 0 auto;
+    width: 100px;
+    padding: 0 4px;
+    padding-top: 2px;
+    min-height: auto;
+    position: relative;
+    box-sizing: border-box;
+  }
+  #homeProjectsList .project-gauge-item .pg-dot {
+    left: 50%;
+    top: -21px;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    margin-top: 0;
+  }
+  #homeProjectsList .project-gauge-item .pg-body {
+    align-items: center;
+    min-width: 0;
+  }
+  #homeProjectsList .project-gauge-item .pg-name {
+    font-size: 13px;
+    word-break: break-word;
+    text-align: center;
+    line-height: 1.3;
+  }
+  #homeProjectsList .project-gauge-item .pg-tags {
+    font-size: 11px;
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.3;
+    white-space: normal;
+  }
+  #homeProjectsList .project-gauge-item .pg-tags::before {
+    content: "";
+    display: block;
+    height: 2px;
+  }
+  /* 每个 tag 独占一行 */
+  #homeProjectsList .project-gauge-item .pg-tags .pg-tag {
+    display: block;
+    word-break: break-all;
+    line-height: 1.3;
+  }
+
+  /* ======== 热点页：移动端两页切换（列表页 / 详情页）======== */
+  /* 默认：只显示列表卡片(col-1)，隐藏详情(col-2)和评论(col-3) */
+  .view-hot .layout > .col-2,
+  .view-hot .layout > .col-3 {
+    display: none;
+  }
+  .view-hot .col-1 > .home-card {
+    flex: 0 0 auto;
+    height: auto;
+  }
+  .view-hot .col-1 .home-card .list-wrap {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    height: auto;
+  }
+  /* 详情页：有 .hp-detail-mode class 时隐藏列表、显示详情+评论 */
+  .view-hot.hp-detail-mode .layout > .col-1 {
+    display: none;
+  }
+  .view-hot.hp-detail-mode .layout > .col-2,
+  .view-hot.hp-detail-mode .layout > .col-3 {
+    display: block;
+  }
+  .view-hot.hp-detail-mode .col-2 > .home-card,
+  .view-hot.hp-detail-mode .col-3 > .home-card {
+    flex: 0 0 auto;
+    height: auto;
+  }
+  .view-hot.hp-detail-mode .home-card .list-wrap {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    height: auto;
+  }
+  /* 返回按钮：详情 header 左上角，位置和抽签列表的分享按钮一致（offsetLeft=0，贴 header 左边缘）*/
+  .hp-detail-back-btn {
+    position: absolute !important;
+    left: 0 !important;
+    right: auto !important;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+  }
+  .view-hot .col-2 .card-header.center {
+    position: relative;
+  }
+  /* 确保 h2 真正水平居中（返回按钮 absolute 不占宽度）*/
+  .view-hot .col-2 .card-header.center h2 {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  /* 移动端：帖子列表选中态和普通态完全一致，无任何高亮 */
+  .hp-post-item.selected {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+  .hp-post-item.selected .hp-post-title {
+    color: var(--text) !important;
+  }
+
+  /* ========== 排行页移动端两页切换 ========== */
+  /* 撑满导航栏上方空间 */
+  .view-rank {
+    height: calc(100vh - 110px);
+    min-height: calc(100vh - 110px);
+    overflow: hidden;
+  }
+  .view-rank .layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: 100%;
+  }
+  .view-rank .col-1 {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 14px;
+  }
+  .view-rank .col-2,
+  .view-rank .col-3 {
+    display: none;
+  }
+  /* 卡片通用 */
+  .view-rank .card {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .view-rank .card > .card-header {
+    flex: 0 0 auto;
+  }
+
+  /* ——— P1 默认页：总榜(auto, 内容自适应) + 项目(flex:1, 撑满剩余) ——— */
+  .view-rank .list-card {
+    flex: 0 0 auto;
+  }
+  .view-rank .people-card {
+    flex: 1 1 0%;
+    min-height: 0 !important;  /* 覆盖全局 min-height:180px */
+  }
+  .view-rank .people-card .list-wrap {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* ——— rank-detail-mode：仅成绩卡 ——— */
+  .view-rank.rank-detail-mode .col-1,
+  .view-rank.rank-detail-mode .col-3 {
+    display: none;
+  }
+  .view-rank.rank-detail-mode .col-2 {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+  .view-rank.rank-detail-mode .rank-table-card {
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+  .view-rank.rank-detail-mode .rank-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* ——— rank-board-mode：仅排名卡 ——— */
+  .view-rank.rank-board-mode .col-1,
+  .view-rank.rank-board-mode .col-2 {
+    display: none;
+  }
+  .view-rank.rank-board-mode .col-3 {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+  .view-rank.rank-board-mode .rank-top-card {
+    flex: 1 1 0%;
+    min-height: 0;
+    height: auto;
+  }
+  .view-rank.rank-board-mode .rank-top-card .rank-board-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* header center */
+  .view-rank .card-header.center {
+    position: relative;
+  }
+  .view-rank .card-header.center h2 {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  /* 排行页所有 .hp-detail-back-btn 贴左边缘 */
+  .view-rank .card-header.center > .glass-btn.round.hp-detail-back-btn {
+    position: absolute;
+    left: 0;
+    right: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+  }
+
+  /* 水军榜/关怀榜标题在移动端默认隐藏，在 rank-board-mode 显示 */
+  .view-rank .rank-board-title {
+    display: none;
+    margin-bottom: 0;
+  }
+  .view-rank .rank-board {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    margin-bottom: 0;
+    min-height: 0;
+  }
+  .view-rank .rank-board:last-child {
+    margin-bottom: 0;
+  }
+  .view-rank.rank-board-mode .rank-board-title {
+    display: block;
+  }
+  .view-rank.rank-board-mode .rank-board {
+    flex: 1 1 auto;
+  }
+  .view-rank .rank-board-list {
+    gap: 8px;
+  }
+
+  /* 移动端：总榜/项目列表选中态无黄色高亮、无黄色描边 */
+  .view-rank .person-item.selected,
+  .view-rank .person-item.active,
+  .view-rank .person-item.highlight {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: var(--text) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: none !important;
+    transform: none !important;
+    outline: none !important;
+  }
+
+  /* （col-1 的 flex column 在 2225 行已定义，不再重复） */
+
+  /* ========== 抽签页移动端三页切换 ========== */
+  /* 抽签页撑满导航栏上方空间（覆盖通用 .view height:auto）*/
+  .view-draw {
+    height: calc(100vh - 110px);
+    min-height: calc(100vh - 110px);
+    overflow: hidden;
+  }
+  /* layout 单列，撑满高度 — P1: 名单行 auto + 抽取行 1fr */
+  .view-draw .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 14px;
+    height: 100%;
+  }
+  .view-draw .col-1,
+  .view-draw .col-2 {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .view-draw .col-3 {
+    display: none;
+  }
+  /* col-1 内部纵向排列 + 间距 */
+  .view-draw .col-1 {
+    gap: 14px;
+  }
+
+  /* 所有卡片通用 */
+  .view-draw .card {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .view-draw .card > .card-header {
+    flex: 0 0 auto;
+  }
+
+  /* ——— P1 默认页：名单 + 抽取 ——— */
+  .view-draw .people-card {
+    display: none;
+  }
+  .view-draw .list-card {
+    flex: 0 0 auto;
+  }
+  .view-draw .list-card .custom-select {
+    flex: 0 0 auto;
+  }
+  .view-draw .draw-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    /* 覆盖全局 .draw-card 的 align-items:center，让 header 撑满 card 宽度 */
+    align-items: stretch;
+  }
+  .view-draw .draw-card .draw-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .view-draw .draw-card .draw-footer {
+    flex: 0 0 auto;
+  }
+
+  /* ——— P2 draw-people-mode：仅人员页 ——— */
+  .view-draw.draw-people-mode .layout {
+    grid-template-rows: 1fr;
+  }
+  .view-draw.draw-people-mode .list-card,
+  .view-draw.draw-people-mode .col-2 {
+    display: none;
+  }
+  .view-draw.draw-people-mode .people-card {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .view-draw.draw-people-mode .people-card .list-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* ——— P3 draw-history-mode：仅历史/列表页 ——— */
+  .view-draw.draw-history-mode .layout {
+    grid-template-rows: 1fr;
+  }
+  .view-draw.draw-history-mode .col-1,
+  .view-draw.draw-history-mode .col-2 {
+    display: none;
+  }
+  .view-draw.draw-history-mode .col-3 {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .view-draw.draw-history-mode .history-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+  .view-draw.draw-history-mode .history-card .list-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* header center 让按钮 absolute 不影响居中 */
+  .view-draw .card-header.center {
+    position: relative;
+  }
+  .view-draw .card-header.center h2 {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  /* 确保抽签页所有带 .hp-detail-back-btn 的按钮都贴 header 左边缘，
+     覆盖全局 .card-header > .glass-btn.round 的 right: 0 规则 */
+  .view-draw .card-header.center > .glass-btn.round.hp-detail-back-btn {
+    position: absolute;
+    left: 0;
+    right: auto;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+  }
+
+  /* ========== 设置页移动端两页切换 ========== */
+  /* 设置页撑满导航栏上方全部空间（覆盖通用 .view height:auto）*/
+  .view-settings {
+    height: calc(100vh - 110px);
+    min-height: calc(100vh - 110px);
+    overflow: hidden;
+  }
+  /* 默认：仅显示 col-1 分类列表，隐藏 col-2 + col-3（关于收进分类）*/
+  .view-settings .layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    height: 100%;
+  }
+  .view-settings .col-1,
+  .view-settings .col-2 {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  /* 卡片撑满列高 */
+  .view-settings .col-1 > .card,
+  .view-settings .col-2 > .card {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+  .view-settings .col-2,
+  .view-settings .col-3 {
+    display: none;
+  }
+  /* 详情模式：隐藏 col-1，显示 col-2 */
+  .view-settings.settings-detail-mode .col-1 {
+    display: none;
+  }
+  .view-settings.settings-detail-mode .col-2 {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 卡片撑满高度，内部滚动容器自适应 */
+  .view-settings .card {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .view-settings .card > .card-header {
+    flex: 0 0 auto;
+  }
+  .view-settings .col-2 .settings-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .view-settings .col-2 .settings-panel > .card-header {
+    flex: 0 0 auto;
+  }
+  /* 仅让真正的滚动容器撑满剩余空间，setting-item 保持内容自适应 */
+  .view-settings .col-2 .settings-panel > .list-wrap,
+  .view-settings .col-2 .settings-panel > .card-scroll,
+  .view-settings .col-2 .settings-panel > .about-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  /* about panel：让 card-scroll 变成 flex column，版权贴底 */
+  .view-settings .col-2 .settings-panel[data-panel="about"] > .card-scroll {
+    display: flex;
+    flex-direction: column;
+  }
+  .view-settings .col-2 .settings-panel[data-panel="about"] > .card-scroll > .about-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+  }
+  .view-settings .col-2 .settings-panel[data-panel="about"] .about-copyright {
+    margin-top: auto;
+    text-align: center;
+  }
+  .view-settings .col-2 .settings-panel > .setting-item {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .view-settings .card > .list-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .view-settings .card > .card-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* 分类项无黄色选中高亮，active 与非 active 视觉完全一致 */
+  .view-settings .settings-category,
+  .view-settings .settings-category.active {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+    outline: none;
+    color: var(--text-primary);
+  }
+  .view-settings .settings-category.active .name,
+  .view-settings .settings-category .name {
+    color: var(--text-primary);
+  }
+
+  /* 返回按钮定位（和抽签/热点一致）*/
+  .view-settings .settings-detail-back {
+    position: absolute !important;
+    left: 0 !important;
+    top: 50%;
+    transform: translateY(-50%);
+    right: auto !important;
+    z-index: 2;
+  }
+
+  /* 移动端显示"关于网站"分类项（桌面端常驻 col-3 已隐藏）*/
+  .view-settings .settings-category[data-category="about"] {
+    display: flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .bottom-nav { gap: 2px; padding: 7px; }
+}
+
+/* ============================================================
+   热点页 3 列布局（复用首页 .layout/.home-card/.list-wrap 玻璃化）
+   ============================================================ */
+/* 搜索框 wrapper：现在移到了 list-wrap 外面（.card 的直接子元素，header 下面）= 彻底脱离滚动容器，
+ * 不再需要自己左右 padding：直接吃 .card 的 padding:20px，左右宽度天然和 list-wrap 内部帖子卡片对齐（list-wrap margin:-4 + padding:4 结果也是从 card 内边距开始）。
+ * 用 margin-bottom 控制搜索框和下面 list-wrap 的间距（替代原来内部 padding-bottom）
+ */
+.hp-search-wrap {
+  flex: 0 0 auto;
+  margin-bottom: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 1;
+}
+/* 因为搜索框移出去了，view-hot 第 1 列的 list-wrap 内部顶部本来和搜索框挨着，现在顶部 padding 收掉 4px（否则会比原来多 4px 空白）
+ * 左右/底部 padding 保留 4px（滚动容器的内边距）
+ */
+.view-hot .col-1 .home-card .list-wrap {
+  padding-top: 0;
+}
+/* 搜索框自身独立 wrapper：高度 = input 高度（40px），用于给 .hp-search-icon 做相对定位基准，
+   这样图标 top:50% 永远按 input 垂直居中，不会因为 wrapper 有 padding 而偏 */
+.hp-search-box {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  flex: 0 0 auto;
+}
+/* file:// 模式专属：本地帖子文件选择 + 拖拽面板（在弹窗内部使用）*/
+.hp-local-drop {
+  display: block;
+  padding: 18px 14px;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(255, 213, 79, 0.48);
+  background: rgba(255, 213, 79, 0.06);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  margin-bottom: 14px;
+}
+.hp-local-drop:hover,
+.hp-local-drop.hp-drag-over {
+  background: rgba(255, 213, 79, 0.12);
+  border-color: var(--accent);
+}
+.hp-local-drop-title {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.hp-local-drop-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.hp-search {
+  position: absolute;       /* 填满外层 .hp-search-box 40×100% */
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 14px 0 40px;   /* 左 40px 给搜索图标，去掉上下 padding，保证文字垂直居中 */
+  border-radius: 999px;     /* 胶囊形状 */
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 40px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.hp-search::placeholder { color: var(--muted); }
+.hp-search:focus {
+  border-color: var(--accent);
+  background: rgba(255, 213, 79, 0.06);
+}
+.hp-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px; height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  pointer-events: none;
+  z-index: 2;
+}
+.hp-search-icon svg { width: 15px; height: 15px; }
+
+/* 帖子条目：复用抽签历史条目样式（尺寸/间距/hover/金色描边一致）*/
+.hp-post-item {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.hp-post-item:hover { background: rgba(255, 255, 255, 0.12); }
+/* 选中态——与抽签历史最顶部一条的金色描边完全一致 */
+.hp-post-item.selected {
+  background: rgba(255, 213, 79, 0.22);
+  border-color: var(--accent);
+}
+.hp-post-item .hp-post-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+  /* 最多 2 行，超出省略 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hp-post-item .hp-post-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* 详情卡片空态 + 评论卡片空态 */
+.hp-detail-empty, .hp-comment-empty {
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ===== 详情：详情标题截断样式 ===== */
+.view-hot .col-2 .card-header.center h2 {
+  max-width: 75%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== 详情正文 ===== */
+.hp-detail-title {
+  font-size: 22px;          /* 改回大字号（用户要求），不再单行 40px */
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+  padding: 6px 20px 10px 20px;  /* 去掉上方间距：只保留顶部 6px，让标题与顶部搜索框整体顶高度相近但大字能多行动态扩张 */
+  margin: 0;
+  text-align: center;
+  word-break: break-word;
+}
+.hp-detail-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 20px 12px 20px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.hp-detail-body {
+  padding: 4px 20px 24px 20px;
+  font-size: 14px;
+  line-height: 1.85;
+  color: #ffffff;            /* 帖子正文强制白色 */
+  word-break: break-word;
+}
+/* 每段：首行缩进 2 汉字 + 段间空一行（p 有 margin-bottom） */
+.hp-detail-body p {
+  text-indent: 2em;
+  margin: 0 0 1.1em 0;
+  padding: 0;
+  color: #ffffff;            /* 每段文字也强制白色，覆盖继承 */
+}
+.hp-detail-body p:last-child { margin-bottom: 0; }
+
+/* ====== 评论列 header：标题居中，右上角圆形返回按钮绝对定位 ====== */
+.view-hot .col-3 .card-header {
+  position: relative;
+}
+.view-hot .col-3 .card-header h2 {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+/* 评论区往上抬：卡片里 list-wrap 默认的全局 padding-top 4px 再砍到 2px */
+.view-hot .col-3 .home-card .list-wrap {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* ============================================================
+   评论楼层——参考 B 站布局
+   - 昵称 = 抽签历史卡片"第1行"：14px / 主色(白) / font-weight:500
+   - 正文 = 抽签历史卡片"第2行"：11px / --text-soft(灰)
+   - 主评论下只显示 2 条子回复预览（无头像），下面「共 N 条回复」点进评论详情
+   - 评论详情内：所有回复 flat 展开（不缩进灰块），每条回复内容前加「回复 @xxx : 」
+   ============================================================ */
+.hp-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;               /* 原来 16px，评论之间间距也收紧一点 */
+  padding: 4px 6px 12px 2px;  /* 顶部 12px → 4px，距 header 大幅上移；底部 20px → 12px 收窄 */
+}
+/* 顶层评论项 */
+.hp-comment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.hp-comment-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+.hp-comment-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* 昵称（抽签历史第1行风格） */
+.hp-comment-name {
+  font-size: 14px;             /* 对应 .history-item .name */
+  font-weight: 500;
+  color: var(--text);         /* 对应 .history-item .name 继承默认主色白 */
+  word-break: break-all;
+}
+/* 正文（抽签历史第2行风格） */
+.hp-comment-text {
+  font-size: 11px;             /* 对应 .history-item .list */
+  line-height: 1.65;
+  color: var(--text-soft);     /* 对应 .history-item .list */
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+/* @ 用户高亮（评论详情里用在「回复 @xxx :」前面） */
+.hp-at-user {
+  color: var(--accent);    /* 主题黄色：取代原 B 站粉红 */
+}
+
+/* —— 主评论下 2 条预览的子回复 —— */
+/* 子回复缩进块（B站灰色背景），内部垂直堆叠子项；「共 N 条回复」也在这个圆角矩形内部 */
+.hp-comment-children {
+  margin-top: 8px;
+  padding: 6px 10px 8px 10px;
+  background: rgba(255, 255, 255, 0.055);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hp-comment-child {
+  gap: 8px;
+}
+/* B 站预览里子回复不显示头像 */
+.hp-comment-child .hp-comment-avatar {
+  display: none !important;
+}
+.hp-comment-child .hp-comment-name { font-size: 14px; }   /* 和顶层评论 id 一样大（原来 13px 改回 14px）*/
+.hp-comment-child .hp-comment-text { font-size: 11px; }   /* 和顶层评论内容一样大（保持 11px）*/
+
+/* —— 预览灰块内的「子回复」：昵称和内容同行显示「id: 内容」，不换行，长内容省略号 —— */
+.hp-comment-children .hp-comment-child .hp-comment-main {
+  flex-direction: row;       /* 原来 column（昵称一行、内容一行）改成 row 同行 */
+  align-items: baseline;
+  flex-wrap: nowrap;
+}
+/* 昵称后自动加冒号，和内容挨在一起 */
+.hp-comment-children .hp-comment-child .hp-comment-name::after {
+  content: ":";
+  margin-left: 2px;
+  margin-right: 4px;
+  color: var(--text-soft);
+}
+.hp-comment-children .hp-comment-child .hp-comment-name {
+  flex: 0 0 auto;            /* 昵称宽度内容定死，不占剩余空间 */
+}
+.hp-comment-children .hp-comment-child .hp-comment-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;       /* 强制同行，长内容显示省略号 */
+  display: inline-block;
+}
+
+/* 共 N 条回复按钮（主题黄色，点击进入楼层详情）— 放在圆角矩形内 */
+.hp-comment-more {
+  margin-top: 2px;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--accent);      /* 黄色：取代原 B 站粉红 */
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hp-comment-more:hover {
+  text-decoration: underline;
+}
+.hp-comment-more-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.hp-comment-more-disabled:hover {
+  text-decoration: none;
+}
+
+/* —— 评论详情模式（.hp-comment-list.hp-detail-mode）：B 站风格平级布局
+   = 顶层主评论（带头像） + 分割线（相关回复共X条） + 所有回复 flat。
+   每条回复都带头像，层级缩进完全取消，回复关系只靠「回复 @xxx：」前缀文本表示 —— */
+.hp-comment-list.hp-detail-mode .hp-comment-children {
+  display: none !important;   /* 详情模式安全兜底：如果出现嵌套 children 灰块直接隐藏 */
+  padding: 0; margin: 0; background: transparent; border-radius: 0;
+}
+
+/* 1. 子回复头像：详情下强制显示（覆盖预览灰块里的 display:none !important，这里优先级更高：多了 .hp-detail-mode）*/
+.hp-comment-list.hp-detail-mode .hp-comment-child .hp-comment-avatar {
+  display: block !important;
+}
+
+/* 2. 主评论 ↔ 回复区 的大分割线（原「相关回复共 X 条」那条分割线，现在文字移到 header 计数里了，分割线只做视觉隔断）*/
+.hp-detail-divider {
+  padding: 12px 2px 10px 2px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  margin: 2px 0 6px 0;
+}
+.hp-detail-divider.hp-detail-divider-no-text {
+  /* ——— 无文字的分割线：仅作为主评论与回复区之间的 1px 视觉分隔 ———
+   *   间距完全由容器 gap:12px 控制（与评论页一致），divider 本身不占额外空间
+   */
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding: 0;
+  margin: 0;
+  height: 0;
+}
+.hp-detail-divider-title {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.hp-detail-divider-title b {
+  color: var(--text);
+  font-weight: 600;
+  margin: 0 2px;
+}
+
+/* 3. 回复卡片：回复与回复之间无分割线，仅主评论与第一条回复之间有分割线（由 .hp-detail-divider 提供）*/
+.hp-comment-list.hp-detail-mode {
+  gap: 12px;            /* 与评论页 .hp-comment-list gap 一致 */
+  padding-bottom: 12px; /* 与评论页 padding-bottom 一致 */
+}
+.hp-comment-list.hp-detail-mode .hp-comment-child {
+  padding-left: 0;
+  padding-top: 0;
+  padding-bottom: 0;      /* 与评论页一致：间距完全由容器 gap 控制，不叠加 padding */
+  margin-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: none;  /* 回复与回复之间无分割线 */
+  /* —— 头像和 main 的间距 gap 与顶层主评论一致（原预览灰块是 8px，详情模式是 10px）——
+   *   顶层主评论 .hp-comment-item 是 gap:10px，子评论默认 .hp-comment-child 是 gap:8px，
+   *   导致「头像左边对齐」的情况下，回复的 id/内容(main) 比主评论**靠左 2px**（10-8=2）
+   *   这里强制改成 10px → 两者 main 的左边界完全在同一列，像素级对齐
+   */
+  gap: 10px;
+}
+/* 顶层主评论（不带 .hp-comment-child）：无 padding-bottom，与回复项一致，间距由容器 gap 控制 */
+.hp-comment-list.hp-detail-mode > .hp-comment-item:not(.hp-comment-child) {
+  padding-bottom: 0;
+}
+
+/* ============================================================
+   关于页面样式
+   ============================================================ */
+.about-card .about-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  /* 参考热点帖子列表卡片边距：list-wrap 使用 margin:-4px + padding:4px */
+  margin: -4px;
+  padding: 4px;
+  text-align: center;
+  /* 撑满滚动区高度：内容不足时黄框+版权仍贴卡片底部 */
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.about-logo img {
+  width: 160px;
+  height: 100px;
+  object-fit: contain;
+  border-radius: 16px;
+}
+
+.about-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.about-version {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.about-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.avatar-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.avatar-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+
+.about-upload {
+  width: 100%;
+  /* 顶部自动吸走剩余空间：黄框与版权行整体贴卡片底部 */
+  margin: auto 0 0;
+}
+
+.upload-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 12px;
+  border: 2px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.upload-box:hover,
+.upload-box.drag-over {
+  border-color: var(--accent);
+  background: rgba(255, 213, 79, 0.08);
+}
+
+.upload-icon {
+  font-size: 24px;
+}
+
+.upload-text {
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.about-copyright {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-top: auto;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.about-responsibility {
+  font-size: 11px;
+  color: var(--text-soft);
+  display: block;
+  margin: 0;
+}
