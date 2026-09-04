@@ -11,7 +11,8 @@
   var PRELOAD_ERRORS = [];
 
   function preloadDataFile(type, path) {
-    return fetch(path)
+    // cache: "no-store" —— 数据文件更新后版本信息必须立刻跟上，不能读浏览器缓存的旧文件
+    return fetch(path, { cache: "no-store" })
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.text();
@@ -5880,7 +5881,7 @@
   //       应用状态（jfes_random_person_v1：名单结构/活跃ID/链接库/排行等）、私有目录文件
   var SHARED_KEYS = [
     "jfes_theme", "jfes_view", "jfes_card_blur", "jfes_bg_darkness",
-    "jfes_page_title", "jfes_bgm", "jfes_bgm_volume", "jfes_random_person_v1"
+    "jfes_page_title", "jfes_bgm", "jfes_bgm_volume", "jfes_bgm_select", "jfes_random_person_v1"
   ];
 
   function isPrivateDirKey(key) {
@@ -5938,7 +5939,7 @@
           if (/^jfes_data_/.test(key)) return;
           // 跳过用户偏好键：主题/模糊度/灰暗度/背景音乐/页面标题/视图以当前设置为准，
           // 备份里的旧值不回写（否则每次刷新都会把用户的主题设置重置成备份时的值）
-          if (/^jfes_(theme|card_blur|bg_darkness|bgm|bgm_volume|page_title|view)$/.test(key)) return;
+          if (/^jfes_(theme|card_blur|bg_darkness|bgm|bgm_volume|bgm_select|page_title|view)$/.test(key)) return;
           try {
             localStorage.setItem(key, String(backup.storage[key]));
           } catch (e) { /* 单键失败不阻断 */ }

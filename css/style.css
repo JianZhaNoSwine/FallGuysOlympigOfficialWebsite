@@ -414,8 +414,9 @@ body::after {
 }
 /* 抽签页名单选择框 trigger：与人员卡片 .person-item 视觉样式完全一致 */
 #listSelectWrap .custom-select-trigger,
-/* 设置页深色模式 / 赛季切换：统一用扁平风格 */
+/* 设置页深色模式 / 音乐切换 / 赛季切换：统一用扁平风格 */
 #themeSelectWrap .custom-select-trigger,
+#bgmSelectWrap .custom-select-trigger,
 #seasonSelectWrap .custom-select-trigger {
   padding: 9px 12px;
   border-radius: 12px;
@@ -427,12 +428,15 @@ body::after {
 }
 #listSelectWrap .custom-select-trigger:hover,
 #themeSelectWrap .custom-select-trigger:hover,
+#bgmSelectWrap .custom-select-trigger:hover,
 #seasonSelectWrap .custom-select-trigger:hover { background: rgba(255, 255, 255, 0.14); }
 #listSelectWrap .custom-select-trigger:active,
 #themeSelectWrap .custom-select-trigger:active,
+#bgmSelectWrap .custom-select-trigger:active,
 #seasonSelectWrap .custom-select-trigger:active { transform: none; }
 #listSelectWrap .custom-select-trigger:focus-visible,
 #themeSelectWrap .custom-select-trigger:focus-visible,
+#bgmSelectWrap .custom-select-trigger:focus-visible,
 #seasonSelectWrap .custom-select-trigger:focus-visible {
   outline: none;
   border-color: rgba(255, 255, 255, 0.2);
@@ -1057,9 +1061,10 @@ body[data-effective="dark"] #themeSelectDropdown {
 .settings-panel[hidden] { display: none; }
 .settings-panel { flex: 1 1 auto; min-height: 0; }
 .settings-panel .card-header { margin-bottom: 14px; }
-/* 使用说明 / 数据链接面板内容可能较长，内部滚动；其余面板保持可见以放行主题下拉 */
+/* 使用说明 / 数据链接 / 主题样式面板内容可能较长，内部滚动；其余面板保持可见以放行下拉框 */
 .settings-panel[data-panel="help"],
-.settings-panel[data-panel="link"] {
+.settings-panel[data-panel="link"],
+.settings-panel[data-panel="style"] {
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -2564,9 +2569,9 @@ body[data-effective="dark"] #themeSelectDropdown {
     overflow: visible;
   }
   .view-settings .col-2 .settings-panel[data-panel="about"] .about-copyright {
-    margin-top: auto;
     text-align: center;
   }
+  /* 移动端关于面板：GitHub 按钮锚定底部，版权随其下 */
   .view-settings .col-2 .settings-panel > .setting-item {
     flex: 0 0 auto;
     min-height: 0;
@@ -2927,6 +2932,15 @@ body[data-effective="dark"] #themeSelectDropdown {
   display: inline-block;
 }
 
+/* 移动设备模式：不会进入楼层详情，评论页灰块内回复完整显示（不再单行省略） */
+@media (max-width: 900px) {
+  .hp-comment-children .hp-comment-child .hp-comment-text {
+    white-space: pre-wrap;     /* 保留换行符，长内容自动换行显示全 */
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
 /* 共 N 条回复按钮（主题黄色，点击进入楼层详情）— 放在圆角矩形内 */
 .hp-comment-more {
   margin-top: 2px;
@@ -3111,14 +3125,97 @@ body[data-effective="dark"] #themeSelectDropdown {
 .about-copyright {
   font-size: 11px;
   color: var(--text-soft);
-  margin-top: auto;
   line-height: 1.6;
   text-align: center;
 }
+
+/* GitHub 仓库按钮：版权信息上方的圆角矩形，锚定内容底部 */
+.about-github-btn {
+  margin-top: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.about-github-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+/* GitHub 图标 */
+.github-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.github-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+/* 与版权的间距由 .about-content 的 gap: 12px 提供 */
 
 .about-responsibility {
   font-size: 11px;
   color: var(--text-soft);
   display: block;
   margin: 0;
+}
+
+/* ===== 主题样式面板：横屏 2 列分组（壁纸 / 音乐 / 模糊），竖屏保持纵向堆叠 ===== */
+/* 竖屏（默认）：分组小字隐藏，布局与原来完全一致 */
+.style-group-label { display: none; }
+/* 修复竖屏：label 插入导致相邻 setting-item 丢失 .setting-item + .setting-item 的 margin-top */
+.style-group-label + .setting-item { margin-top: 12px; }
+.card-header + .style-group-label + .setting-item { margin-top: 0; }
+
+/* 横屏（含桌面）：壁纸=深色模式独占一行，音乐=音乐切换+背景音乐一行，模糊=模糊度+灰暗度一行 */
+@media (orientation: landscape) {
+  .view-settings .settings-panel[data-panel="style"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-content: start;
+  }
+  /* 标题与分组小字横跨两列 */
+  .view-settings .settings-panel[data-panel="style"] > .card-header,
+  .view-settings .settings-panel[data-panel="style"] > .style-group-label {
+    grid-column: 1 / -1;
+  }
+  /* 深色模式（第 3 个子元素）独占一行 */
+  .view-settings .settings-panel[data-panel="style"] > .setting-item:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .view-settings .settings-panel[data-panel="style"] > .style-group-label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    line-height: 1.5;
+  }
+  .view-settings .settings-panel[data-panel="style"] > .setting-item {
+    margin-top: 0;
+  }
+  /* 音乐行：背景音乐滑条与音乐切换选择框垂直对齐（控件行同高，说明文字随之对齐） */
+  .view-settings .settings-panel[data-panel="style"] #bgmSelectWrap .custom-select-trigger {
+    height: 40px;
+  }
+  .view-settings .settings-panel[data-panel="style"] .setting-slider-wrap {
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
 }

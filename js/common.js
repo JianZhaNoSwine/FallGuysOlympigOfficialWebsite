@@ -588,10 +588,13 @@
 
   // ===== 背景音乐 =====
   // 纯 HTMLAudio：简单、不碰全局事件、不影响任何页面控件点击
-  // 第一赛季(C1) → flac/OP1.flac，第二赛季(C2) → flac/OP2.flac
-  // 音量 0-100（0=关闭），默认 50，localStorage 持久化
+  // 音乐切换：自动 / 第一赛季(OP1) / 第二赛季(OP2) / 第二赛季开幕式(OP2OP)
+  // 自动规则：第一赛季(C1)→OP1，第二赛季(C2)→OP2；2026-09-04~09-05 全天优先播 OP2OP
+  // 音量 0-100（0=关闭），默认 50；选择持久化 localStorage（默认 auto）
   var BGM_VOL_KEY = "jfes_bgm_volume";
+  var BGM_SEL_KEY = "jfes_bgm_select";
   var DEFAULT_BGM_VOL = 50;
+  var BGM_NAMES = { auto: "自动", op1: "第一赛季", op2: "第二赛季", op2op: "第二赛季开幕式" };
   function loadBgmVol() {
     try {
       var v = parseInt(localStorage.getItem(BGM_VOL_KEY), 10);
@@ -605,6 +608,16 @@
       localStorage.setItem(BGM_VOL_KEY, String(v));
     } catch (e) {}
   }
+  function loadBgmSel() {
+    try {
+      var v = localStorage.getItem(BGM_SEL_KEY);
+      if (v === "op1" || v === "op2" || v === "op2op") return v;
+    } catch (e) {}
+    return "auto";
+  }
+  function saveBgmSel(v) {
+    try { localStorage.setItem(BGM_SEL_KEY, v); } catch (e) {}
+  }
   function bgmAudio() { return document.getElementById("bgmAudio"); }
   function currentSeasonCode() {
     try {
@@ -612,7 +625,23 @@
     } catch (e) {}
     return "C2";
   }
-  function bgmSrcFor(code) { return "flac/OP" + ((code === "C1") ? "1" : "2") + ".flac"; }
+  // 自动模式解析：开幕式日期优先级高于赛季映射
+  function resolveAutoBgm() {
+    try {
+      var now = new Date();
+      // 2026年9月4日~9月5日（getMonth() 9月 = 8）
+      if (now.getFullYear() === 2026 && now.getMonth() === 8 &&
+          (now.getDate() === 4 || now.getDate() === 5)) return "op2op";
+    } catch (e) {}
+    return (currentSeasonCode() === "C1") ? "op1" : "op2";
+  }
+  // choice：op1 / op2 / op2op / auto（auto 内部解析为具体曲目）
+  function bgmSrcFor(choice) {
+    if (!choice || choice === "auto") choice = resolveAutoBgm();
+    if (choice === "op1") return "flac/OP1.flac";
+    if (choice === "op2op") return "flac/OP2OP.flac";
+    return "flac/OP2.flac";
+  }
 
   // 写入 volume + muted（统一单处入口）
   function applyVolume(vol0_100) {
@@ -626,11 +655,11 @@
     } catch (e) {}
   }
 
-  // 设置当前赛季所需 src，并尝试播放（浏览器若不允许非静音自动播放则保持 muted，用户点一下页面任意位置即可播放）
+  // 设置当前选择（或自动解析）所需 src，并尝试播放（浏览器若不允许非静音自动播放则保持 muted，用户点一下页面任意位置即可播放）
   function applyBgmSrcAndPlay() {
     var a = bgmAudio();
     if (!a) return;
-    var src = bgmSrcFor(currentSeasonCode());
+    var src = bgmSrcFor(loadBgmSel());
     if (a.getAttribute("data-src") !== src) {
       try { a.pause(); } catch (e) {}
       a.setAttribute("data-src", src);
@@ -725,6 +754,53 @@
     }
     slider.addEventListener("input", onInput);
     slider.addEventListener("change", onInput);
+  }
+
+  // 音乐切换下拉（自动 / 第一赛季 / 第二赛季 / 第二赛季开幕式）
+  function bindBgmSelect() {
+    var wrap = $("#bgmSelectWrap");
+    var trigger = $("#bgmSelectTrigger");
+    var dropdown = $("#bgmSelectDropdown");
+    if (!wrap || !trigger || !dropdown) return;
+
+    function syncOptions(sel) {
+      dropdown.querySelectorAll(".custom-select-option").forEach(function (opt) {
+        opt.classList.toggle("active", opt.dataset.value === sel);
+      });
+      var label = $("#bgmSelectLabel");
+      if (label) label.textContent = BGM_NAMES[sel] || "自动";
+    }
+    function openDropdown() {
+      dropdown.hidden = false;
+      wrap.classList.add("open");
+    }
+    function closeDropdown() {
+      dropdown.hidden = true;
+      wrap.classList.remove("open");
+    }
+
+    trigger.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!dropdown.hidden) closeDropdown();
+      else openDropdown();
+    });
+    document.addEventListener("click", function (e) {
+      if (!wrap.contains(e.target) && !dropdown.contains(e.target)) {
+        closeDropdown();
+      }
+    });
+    dropdown.addEventListener("click", function (e) {
+      var option = e.target.closest(".custom-select-option");
+      if (!option) return;
+      var v = option.dataset.value;
+      saveBgmSel(v);
+      syncOptions(v);
+      closeDropdown();
+      // 立即按新选择切歌（选择不变 + src 相同则不会重播）
+      applyBgmSrcAndPlay();
+    });
+
+    syncOptions(loadBgmSel());  // 初始化标签与高亮
   }
 
   // ===== 开屏页（splash / 登录屏保） =====
@@ -843,20 +919,14 @@
     // 液态玻璃导航栏
     initLiquidGlass();
 
-    // 背景音乐：赛季换源 + 首次启动 + 滑动条绑定
-    document.addEventListener("jfes:seasonChange", function (e) {
-      var season = (e && e.detail && e.detail.season) || currentSeasonCode();
-      var src = bgmSrcFor(season);
-      var a = bgmAudio();
-      if (a) {
-        a.pause();
-        a.setAttribute("data-src", src);
-        a.src = src;
-      }
-      if (loadBgmVol() > 0) applyBgmSrcAndPlay();
+    // 背景音乐：按音乐切换选择换源（自动模式随赛季重解析）+ 首次启动 + 滑动条/下拉绑定
+    document.addEventListener("jfes:seasonChange", function () {
+      // 固定选择时 src 不变则不会重播；自动模式会切到新赛季曲目
+      applyBgmSrcAndPlay();
     });
     applyBgmSrcAndPlay();
     bindBgm();
+    bindBgmSelect();
 
     // 第一个合法用户手势（点击/按键/触摸）→ 解除浏览器的静音强制
     // 只用 3 类 capture 监听，命中即 removeEventListener 永不残留

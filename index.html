@@ -295,6 +295,7 @@
             <!-- 主题样式面板（含深色模式） -->
             <div class="settings-panel" data-panel="style" hidden>
               <div class="card-header"><h2>主题样式</h2></div>
+              <div class="style-group-label">壁纸</div>
               <div class="setting-item">
                 <label class="setting-label">深色模式</label>
                 <div class="custom-select" id="themeSelectWrap">
@@ -310,20 +311,42 @@
                 </div>
                 <div class="setting-hint">自动模式切换壁纸时间：18:00~6:00深色壁纸，6:00~18:00浅色壁纸</div>
               </div>
+              <div class="style-group-label">音乐</div>
+              <div class="setting-item">
+                <label class="setting-label">音乐切换</label>
+                <div class="custom-select" id="bgmSelectWrap">
+                  <button type="button" class="custom-select-trigger" id="bgmSelectTrigger">
+                    <span class="custom-select-label" id="bgmSelectLabel">自动</span>
+                    <span class="custom-select-arrow" data-icon="chevron-down"></span>
+                  </button>
+                  <div class="custom-select-dropdown" id="bgmSelectDropdown" hidden>
+                    <div class="custom-select-option" data-value="auto"><span class="opt-name">自动</span></div>
+                    <div class="custom-select-option" data-value="op1"><span class="opt-name">第一赛季</span></div>
+                    <div class="custom-select-option" data-value="op2"><span class="opt-name">第二赛季</span></div>
+                    <div class="custom-select-option" data-value="op2op"><span class="opt-name">第二赛季开幕式</span></div>
+                  </div>
+                </div>
+                <div class="setting-hint">自动模式根据赛季切换音乐</div>
+              </div>
               <div class="setting-item">
                 <div class="setting-row">
                   <label class="setting-label" for="bgmVolumeSlider">背景音乐</label>
                   <span class="setting-val" id="bgmVolumeValue">50%</span>
                 </div>
-                <input type="range" id="bgmVolumeSlider" class="setting-slider" min="0" max="100" value="50" step="1" />
+                <div class="setting-slider-wrap">
+                  <input type="range" id="bgmVolumeSlider" class="setting-slider" min="0" max="100" value="50" step="1" />
+                </div>
                 <div class="setting-hint">网页自动播放赛季主题曲（来自其他游戏）</div>
               </div>
+              <div class="style-group-label">模糊</div>
               <div class="setting-item">
                 <div class="setting-row">
                   <label class="setting-label" for="blurSlider">模糊度</label>
                   <span class="setting-val" id="blurValue">2px</span>
                 </div>
-                <input type="range" id="blurSlider" class="setting-slider" min="0" max="80" value="2" step="1" />
+                <div class="setting-slider-wrap">
+                  <input type="range" id="blurSlider" class="setting-slider" min="0" max="80" value="2" step="1" />
+                </div>
                 <div class="setting-hint">玻璃卡片的模糊程度</div>
               </div>
               <div class="setting-item">
@@ -331,7 +354,9 @@
                   <label class="setting-label" for="darknessSlider">灰暗度</label>
                   <span class="setting-val" id="darknessValue">30%</span>
                 </div>
-                <input type="range" id="darknessSlider" class="setting-slider" min="0" max="90" value="30" step="1" />
+                <div class="setting-slider-wrap">
+                  <input type="range" id="darknessSlider" class="setting-slider" min="0" max="90" value="30" step="1" />
+                </div>
                 <div class="setting-hint">壁纸叠加的黑色遮罩</div>
               </div>
             </div>
@@ -457,7 +482,7 @@
                     <img src="img/web.png" alt="Logo" />
                   </div>
                   <div class="about-title">奥林PIG运动会官网</div>
-                  <div class="about-version">V1.100.000 Beta</div>
+                  <div class="about-version">V1.101.000 Beta</div>
 
                   <div class="about-avatar-grid">
                     <div class="avatar-cell"><img src="hp/tx/炸鸡.jpg" alt="炸鸡" /></div>
@@ -479,6 +504,7 @@
                     <div class="avatar-cell"><img src="hp/tx/白玉汤.jpg" alt="白玉汤" /></div>
                   </div>
 
+                  <a class="about-github-btn" href="https://github.com/JianZhaNoSwine/FallGuysOlympigOfficialWebsite/tree/main" target="_blank" rel="noopener noreferrer"><span class="github-icon" data-icon="github"></span>GitHub</a>
                   <div class="about-copyright">
                     版权所有©煎炸的豬<br />
                     <span class="about-responsibility">"探索の主宰"为此网站负责</span>
@@ -497,7 +523,7 @@
                   <img src="img/web.png" alt="Logo" />
                 </div>
                 <div class="about-title">奥林PIG运动会官网</div>
-                <div class="about-version">V1.100.000 Beta</div>
+                <div class="about-version">V1.101.000 Beta</div>
 
                 <div class="about-avatar-grid">
                   <div class="avatar-cell"><img src="hp/tx/炸鸡.jpg" alt="炸鸡" /></div>
@@ -519,6 +545,7 @@
                   <div class="avatar-cell"><img src="hp/tx/白玉汤.jpg" alt="白玉汤" /></div>
                 </div>
 
+                <a class="about-github-btn" href="https://github.com/JianZhaNoSwine/FallGuysOlympigOfficialWebsite/tree/main" target="_blank" rel="noopener noreferrer"><span class="github-icon" data-icon="github"></span>GitHub</a>
                 <div class="about-copyright">
                   版权所有©煎炸的豬<br />
                   <span class="about-responsibility">"探索の主宰"为此网站负责</span>
