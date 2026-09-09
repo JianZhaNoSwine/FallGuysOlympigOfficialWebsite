@@ -462,7 +462,7 @@ body::after {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: rgba(20, 20, 40, 0.75);
+  background: rgb(20, 20, 40);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid var(--glass-border);
@@ -1597,7 +1597,7 @@ body[data-effective="dark"] #themeSelectDropdown {
   cursor: pointer;
 }
 
-/* ===== 排行页右列：水军榜 / 关怀榜（两榜各占 50%，直接展示完整排名，内部滚动）===== */
+/* ===== 排行页右列：字数榜（单个榜，展示完整排名，内部滚动；桌面/移动端统一）===== */
 .rank-top-card {
   gap: 12px;
 }
@@ -1610,14 +1610,6 @@ body[data-effective="dark"] #themeSelectDropdown {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-.rank-board-title {
-  flex: 0 0 auto;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
 }
 .rank-board-scroll {
   flex: 1 1 auto;
@@ -1640,13 +1632,32 @@ body[data-effective="dark"] #themeSelectDropdown {
   gap: 10px;
   padding: 0;
 }
-.rank-board-idx {
-  font-size: 15px; /* 与「排名」二字大小一致 */
-  color: #fff;
-  min-width: 16px;
-  text-align: center;
+/* 等级标：头像与名字之间的彩色圆角矩形，高度与名字行一致，深色系不透明底 + 白字 */
+.rank-board-level {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: #ffffff;
   font-variant-numeric: tabular-nums;
 }
+.rank-board-level.lv1    { background: #545b66; }  /* 灰 */
+.rank-board-level.lv2    { background: #2e7d32; }  /* 绿 */
+.rank-board-level.lv3    { background: #00838f; }  /* 青 */
+.rank-board-level.lv4    { background: #1565c0; }  /* 蓝 */
+.rank-board-level.lv5    { background: #c2185b; }  /* 粉 */
+.rank-board-level.lv6    { background: #6a1b9a; }  /* 紫 */
+.rank-board-level.lv7    { background: #b8860b; }  /* 金（暗金） */
+.rank-board-level.lv8    { background: #e65100; }  /* 橙 */
+.rank-board-level.lv9    { background: #c62828; }  /* 红 */
+.rank-board-level.lvplus { background: #141414; }  /* 黑 */
 /* 头像尺寸与热点帖子评论里一致（.hp-comment-avatar 40px），不再缩小 */
 .rank-board-name {
   flex: 1;
@@ -1663,8 +1674,7 @@ body[data-effective="dark"] #themeSelectDropdown {
   color: #fff;
   font-variant-numeric: tabular-nums;
 }
-/* 第 1 名整行文字金色 */
-.rank-board-item.top1 .rank-board-idx,
+/* 持有当前最高等级的人（可能并列多个）名字与字数金色；等级标保持自身配色不变 */
 .rank-board-item.top1 .rank-board-name,
 .rank-board-item.top1 .rank-board-count {
   color: #ffd86b;
@@ -1728,7 +1738,7 @@ body[data-effective="dark"] #themeSelectDropdown {
   animation: fadeIn 0.15s ease;
 }
 .modal {
-  background: linear-gradient(135deg, rgba(50, 50, 100, 0.7), rgba(28, 28, 55, 0.7));
+  background: linear-gradient(135deg, rgb(50, 50, 100), rgb(28, 28, 55));
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 1px solid var(--glass-border);
@@ -2323,25 +2333,10 @@ body[data-effective="dark"] #themeSelectDropdown {
     z-index: 10;
   }
 
-  /* 水军榜/关怀榜标题在移动端默认隐藏，在 rank-board-mode 显示 */
-  .view-rank .rank-board-title {
-    display: none;
-    margin-bottom: 0;
-  }
+  /* 字数榜：移动端排名卡（rank-board-mode）内单个榜占满，与桌面端一致 */
   .view-rank .rank-board {
-    flex: 0 0 auto;
-    padding: 10px 12px;
-    margin-bottom: 0;
-    min-height: 0;
-  }
-  .view-rank .rank-board:last-child {
-    margin-bottom: 0;
-  }
-  .view-rank.rank-board-mode .rank-board-title {
-    display: block;
-  }
-  .view-rank.rank-board-mode .rank-board {
     flex: 1 1 auto;
+    min-height: 0;
   }
   .view-rank .rank-board-list {
     gap: 8px;
@@ -2630,11 +2625,15 @@ body[data-effective="dark"] #themeSelectDropdown {
  * 用 margin-bottom 控制搜索框和下面 list-wrap 的间距（替代原来内部 padding-bottom）
  */
 .hp-search-wrap {
+  position: relative;       /* 作为筛选弹窗绝对定位的基准 */
   flex: 0 0 auto;
   margin-bottom: 10px;
   width: 100%;
   box-sizing: border-box;
-  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;              /* 弹窗展开时盖住下方列表 */
 }
 /* 因为搜索框移出去了，view-hot 第 1 列的 list-wrap 内部顶部本来和搜索框挨着，现在顶部 padding 收掉 4px（否则会比原来多 4px 空白）
  * 左右/底部 padding 保留 4px（滚动容器的内边距）
@@ -2642,14 +2641,114 @@ body[data-effective="dark"] #themeSelectDropdown {
 .view-hot .col-1 .home-card .list-wrap {
   padding-top: 0;
 }
-/* 搜索框自身独立 wrapper：高度 = input 高度（40px），用于给 .hp-search-icon 做相对定位基准，
-   这样图标 top:50% 永远按 input 垂直居中，不会因为 wrapper 有 padding 而偏 */
+/* 搜索框自身独立 wrapper：高度 = input 高度（40px），作为内部绝对定位 input 的尺寸基准 */
 .hp-search-box {
   position: relative;
-  width: 100%;
+  flex: 1 1 auto;           /* 缩短，给右侧筛选按钮留位 */
+  min-width: 0;
   height: 40px;
-  flex: 0 0 auto;
 }
+/* 右侧筛选按钮：与搜索框同高（40px）的圆形玻璃按钮 */
+.hp-filter-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.hp-filter-btn:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+/* 有生效的赛季筛选时：按钮高亮为主题色 */
+.hp-filter-btn.is-active {
+  border-color: var(--accent);
+  background: rgba(255, 213, 79, 0.16);
+  color: var(--accent);
+}
+.hp-filter-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hp-filter-btn-icon svg { width: 17px; height: 17px; }
+/* 筛选弹窗：定位在筛选按钮正下方，左右占满搜索栏（宽度与帖子列表项一致）；
+   背景/圆角/阴影与下拉选择框面板 .custom-select-dropdown 完全同款（纯色深底，无渐变） */
+.hp-filter-popup {
+  position: absolute;
+  top: 46px;               /* 按钮高 40 + 6 间距 */
+  left: 0;
+  right: 0;                /* 占满搜索栏宽 = 帖子项宽度 */
+  box-sizing: border-box;
+  padding: 5px;
+  border-radius: 14px;
+  background: rgb(20, 20, 40);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 12px 40px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+.hp-filter-popup-title {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  padding: 4px 8px 6px;
+}
+/* 每条复选项 */
+.hp-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s;
+}
+.hp-filter-option:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.hp-filter-option input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+/* 自定义复选框 */
+.hp-filter-check {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+}
+.hp-filter-check svg {
+  width: 11px;
+  height: 11px;
+  color: #1a1500;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.12s, transform 0.12s;
+}
+.hp-filter-option input:checked ~ .hp-filter-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.hp-filter-option input:checked ~ .hp-filter-check svg { opacity: 1; transform: scale(1); }
+.hp-filter-option input:checked ~ .hp-filter-label { color: var(--text); font-weight: 600; }
+.hp-filter-label { line-height: 1; }
 /* file:// 模式专属：本地帖子文件选择 + 拖拽面板（在弹窗内部使用）*/
 .hp-local-drop {
   display: block;
@@ -2684,7 +2783,7 @@ body[data-effective="dark"] #themeSelectDropdown {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: 0 14px 0 40px;   /* 左 40px 给搜索图标，去掉上下 padding，保证文字垂直居中 */
+  padding: 0 14px;          /* 无搜索图标，左右对称内边距，文字垂直居中 */
   border-radius: 999px;     /* 胶囊形状 */
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.05);
@@ -2699,20 +2798,6 @@ body[data-effective="dark"] #themeSelectDropdown {
   border-color: var(--accent);
   background: rgba(255, 213, 79, 0.06);
 }
-.hp-search-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 15px; height: 15px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  pointer-events: none;
-  z-index: 2;
-}
-.hp-search-icon svg { width: 15px; height: 15px; }
 
 /* 帖子条目：复用抽签历史条目样式（尺寸/间距/hover/金色描边一致）*/
 .hp-post-item {
@@ -2732,17 +2817,70 @@ body[data-effective="dark"] #themeSelectDropdown {
   background: rgba(255, 213, 79, 0.22);
   border-color: var(--accent);
 }
+/* 帖子标题：真实结构 .hp-post-title > .hp-post-title-inner > [赛季标签 + .hp-post-title-scroll > .hp-post-title-text]。
+   flex 行（标签与文字垂直居中、标签固定）必须挂在直接包裹标签和滚动视口的 .hp-post-title-inner 上；
+   仅标题文字在滚动视口内单行省略/自动循环滚动，视口 overflow:hidden 把滚动裁剪在文字区内（不越界到标签区）。 */
 .hp-post-item .hp-post-title {
+  overflow: hidden;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;
-  word-break: break-word;
-  /* 最多 2 行，超出省略 */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+/* 直接包裹「标签 + 滚动视口」的一层：flex 容器，撑满标题宽度，标签与文字垂直居中 */
+.hp-post-title-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+/* 标题文字滚动视口：占满标签右侧剩余空间；固定尺寸 + relative + overflow:hidden，
+   滚动文字绝对定位在内，水平滚动被严格裁剪于此区域（不会越界到标签区） */
+.hp-post-title-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1.4em;
   overflow: hidden;
+  white-space: nowrap;
+}
+/* 短标题（放得下）：block 单行省略号，常驻显示 */
+.hp-post-title-text {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  will-change: transform;
+}
+/* 长标题（JS 判定溢出后加 .is-marquee）：绝对定位放开宽度，自动无限循环滚动；
+   布局在渲染时一次性确定（短=block、长=absolute），不存在悬停切换，故始终对齐/常显 */
+.hp-post-title-text.is-marquee {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: auto;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* 「第X季」圆角矩形标签（标题前缀），主题色醒目；flex 居中、固定不参与滚动 */
+.hp-post-season-tag {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  background: rgba(255, 213, 79, 0.16);
+  border: 1px solid rgba(255, 213, 79, 0.45);
+  white-space: nowrap;
 }
 .hp-post-item .hp-post-meta {
   display: flex;

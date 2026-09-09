@@ -11,7 +11,14 @@
   var PRELOAD_ERRORS = [];
 
   function preloadDataFile(type, path) {
-    // cache: "no-store" —— 数据文件更新后版本信息必须立刻跟上，不能读浏览器缓存的旧文件
+    // file:// 协议（双击打开本地 html）：Chromium 安全沙箱下 fetch / XHR 读本地文件文本被 CORS 拦截，
+    // 网页 JS 无法获取文件原文（头注释里的版本号读不到）；只有 <script> 标签能跨域执行本地 .js。
+    // 因此 file:// 先走 XHR 试读全文（Firefox / 带 --allow-file-access-from-files 的 Chromium 可读 → 从头注释解析版本），
+    // XHR 失败再退到动态 <script> 执行兜底（只拿到数据对象，头注释在 JS 解析时被丢弃，版本号不可得）。
+    if (window.location.protocol === "file:") {
+      return preloadDataFileFileProtocol(type, path);
+    }
+    // http/https（线上 Cloudflare / 本地服务器）：fetch 读全文，no-store 防缓存，从头注释解析版本 + 解析备份对象
     return fetch(path, { cache: "no-store" })
       .then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
@@ -19,7 +26,7 @@
       })
       .then(function (text) {
         var header = parseFileHeader(text);
-        var version = header ? header.version : "未知";
+        var version = header ? header.version : null;
         var backup = tryParseBackup(text);
         PRELOADED_DATA[type] = { text: text, version: version, backup: backup, header: header };
         return { type: type, version: version, ok: true };
@@ -28,6 +35,75 @@
         PRELOAD_ERRORS.push(type + ": " + (err && err.message ? err.message : err));
         return { type: type, ok: false };
       });
+  }
+
+  // file:// 专用：先 XHR 读全文（能读到就解析头注释版本），失败回退 <script> 执行
+  function preloadDataFileFileProtocol(type, path) {
+    return new Promise(function (resolve) {
+      var fallbackToScript = function () { preloadDataFileViaScript(type, path).then(resolve); };
+      try {
+        var x = new XMLHttpRequest();
+        x.open("GET", path + "?_=" + Date.now(), true);
+        x.timeout = 4000;
+        x.onload = function () {
+          var text = x.responseText;
+          // status 0 + 有内容 = file:// 下部分浏览器（Firefox）成功读取本地文件
+          if ((x.status === 200 || (x.status === 0 && text)) && typeof text === "string" && text.indexOf("JFES_BACKUP") >= 0) {
+            var header = parseFileHeader(text);
+            var backup = tryParseBackup(text);
+            if (backup && backup.storage) {
+              PRELOADED_DATA[type] = { text: text, version: header ? header.version : null, backup: backup, header: header };
+              resolve({ type: type, version: header ? header.version : null, ok: true });
+              return;
+            }
+          }
+          fallbackToScript();
+        };
+        // Chromium 默认 file:// XHR 直接 onerror / 超时 → script 兜底
+        x.onerror = fallbackToScript;
+        x.ontimeout = fallbackToScript;
+        x.send();
+      } catch (e) {
+        fallbackToScript();
+      }
+    });
+  }
+
+  // file:// 兜底：动态 <script> 执行 .data 备份文件（只能拿到数据对象 window.JFES_BACKUP）。
+  // 三个文件都赋值同一个 window.JFES_BACKUP，必须串行加载（onload 抓完立即 delete 防互相覆盖），
+  // 因此用全局队列把并行调用排队执行。
+  var __preloadScriptQueue = Promise.resolve();
+  function preloadDataFileViaScript(type, path) {
+    __preloadScriptQueue = __preloadScriptQueue.then(function () {
+      return new Promise(function (resolve) {
+        var script = document.createElement("script");
+        var finished = false;
+        var timeout = setTimeout(function () { finish(new Error("加载超时")); }, 10000);
+        function finish(err) {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timeout);
+          if (script.parentNode) script.parentNode.removeChild(script);
+          var backup = null;
+          try { backup = window.JFES_BACKUP || null; } catch (_e) { backup = null; }
+          try { delete window.JFES_BACKUP; } catch (_e2) { try { window.JFES_BACKUP = undefined; } catch (_e3) {} }
+          if (err || !backup || backup.format !== "JFES_LOCAL_BACKUP") {
+            PRELOAD_ERRORS.push(type + ": " + (err && err.message ? err.message : "script 加载失败"));
+            resolve({ type: type, ok: false });
+            return;
+          }
+          // 数据对象拿到；文件头注释里的版本号在 JS 解析阶段已被丢弃、file:// 又读不到文件原文，
+          // 故 version 置 null（数据是 .data 中的最新版，版本面板对此情况不回退显示 localStorage 旧号）
+          PRELOADED_DATA[type] = { text: null, version: null, backup: backup, header: null };
+          resolve({ type: type, version: null, ok: true });
+        }
+        script.onload = function () { finish(null); };
+        script.onerror = function () { finish(new Error("script 404/解析错误")); };
+        script.src = path + "?_=" + Date.now();   // 时间戳防缓存
+        document.head.appendChild(script);
+      });
+    });
+    return __preloadScriptQueue;
   }
 
   // 立即启动预加载（并行 fetch 三个文件）
@@ -2143,6 +2219,7 @@
     avatarExts: ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp"],
     selectedId: null,  // 当前选中帖子 id
     searchText: "",    // 当前搜索关键字
+    seasonFilter: [],  // 赛季筛选：[] = 全部；非空 = 仅这些「第X季」标签的帖子（全部 与 各赛季 互斥，赛季间可多选）
     commentFloorIdx: null,               // 评论详情：当前在看哪条主评论的倒序下标（null=全列表）
     commentScrollFloorToRestore: null,   // 从详情返回列表时：要滚回到哪条主评论的倒序下标（还原位置用）
     commentScrollTopBefore: 0            // 进入详情前：list-wrap 当时的 scrollTop（找不到元素时的兜底还原）
@@ -2774,8 +2851,177 @@
       importBox.hidden = !isFile;
     }
     renderHpList();
+    renderHpFilterPopup();
     renderHpDetail();
     renderHpComments();
+  }
+
+  // ===== 热点列表「按赛季筛选」弹窗 =====
+  var HP_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  // 依据当前帖子与 HpState.seasonFilter 构建弹窗复选框（保留弹窗开关状态）
+  function renderHpFilterPopup() {
+    var popup = document.getElementById("hpFilterPopup");
+    if (!popup) return;
+    var wasOpen = !popup.hidden;
+    var seasons = hpAvailableSeasons();
+    var allChecked = !HpState.seasonFilter || HpState.seasonFilter.length === 0;
+
+    function row(season, label) {
+      var checked = season ? (HpState.seasonFilter.indexOf(season) >= 0) : allChecked;
+      return '<label class="hp-filter-option">' +
+        '<input type="checkbox" data-season="' + escapeHtml(season || "") + '"' + (checked ? " checked" : "") + '>' +
+        '<span class="hp-filter-check">' + HP_CHECK_SVG + '</span>' +
+        '<span class="hp-filter-label">' + escapeHtml(label) + '</span>' +
+        '</label>';
+    }
+    var html = '<div class="hp-filter-popup-title">按赛季筛选</div>';
+    html += row("", "全部");
+    for (var i = 0; i < seasons.length; i++) html += row(seasons[i], seasons[i]);
+    popup.innerHTML = html;
+    popup.hidden = !wasOpen;
+    syncHpFilterBtn();
+
+    // 复选框交互：全部 与 各赛季互斥；赛季间可多选
+    popup.querySelectorAll(".hp-filter-option input").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        var season = cb.getAttribute("data-season");
+        if (!season) {
+          // 勾选「全部」→ 清空赛季筛选
+          HpState.seasonFilter = [];
+        } else {
+          var idx = HpState.seasonFilter.indexOf(season);
+          if (cb.checked && idx < 0) HpState.seasonFilter.push(season);
+          if (!cb.checked && idx >= 0) HpState.seasonFilter.splice(idx, 1);
+          // 一个赛季都没选 → 回到「全部」
+          if (!HpState.seasonFilter.length) HpState.seasonFilter = [];
+        }
+        // 同步所有复选框勾选态
+        popup.querySelectorAll(".hp-filter-option input").forEach(function (cb2) {
+          var s2 = cb2.getAttribute("data-season");
+          cb2.checked = s2 ? (HpState.seasonFilter.indexOf(s2) >= 0) : (HpState.seasonFilter.length === 0);
+        });
+        syncHpFilterBtn();
+        renderHpList();
+        renderHpDetail();
+        renderHpComments();
+      });
+    });
+  }
+  // 按钮高亮态：有非「全部」的赛季筛选时高亮
+  function syncHpFilterBtn() {
+    var btn = document.getElementById("hpFilterBtn");
+    if (btn) btn.classList.toggle("is-active", !!(HpState.seasonFilter && HpState.seasonFilter.length));
+  }
+  // 绑定筛选按钮：点击开/关弹窗；点击弹窗外部关闭（只绑一次）
+  function hpBindFilterPopup() {
+    var btn = document.getElementById("hpFilterBtn");
+    var popup = document.getElementById("hpFilterPopup");
+    if (!btn || !popup || btn.__hpFilterBound) return;
+    btn.__hpFilterBound = true;
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      popup.hidden = !popup.hidden;
+    });
+    popup.addEventListener("click", function (e) { e.stopPropagation(); });
+    document.addEventListener("click", function () {
+      if (!popup.hidden) popup.hidden = true;
+    });
+    // 切到其他 tab 时关闭弹窗
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !popup.hidden) popup.hidden = true;
+    });
+  }
+
+  // 帖子标题格式为「xx：xxxx」。
+  //  - 若 xx 是「第X季」：把「第X季」包成圆角矩形标签，冒号后内容作为滚动标题；
+  //  - 否则（无第X季标签）：整句作为标题，把分隔用的冒号「：」显示为「的」（如「猪活：第八期」→「猪活的第八期」）。
+  function hpBuildPostTitleHtml(title) {
+    var s = (title == null ? "(无标题)" : String(title));
+    var m = s.match(/^\s*(第[一二三四五六七八九十百千两0-9]+季)\s*[：:]\s*([\s\S]*)$/);
+    if (m) {
+      return '<span class="hp-post-season-tag">' + escapeHtml(m[1]) + '</span><span class="hp-post-title-scroll"><span class="hp-post-title-text">' + escapeHtml(m[2]) + '</span></span>';
+    }
+    // 无第X季标签：标题里的冒号显示为「的」（只替换第一个分隔冒号）
+    var display = s.replace(/[：:]/, "的");
+    return '<span class="hp-post-title-scroll"><span class="hp-post-title-text">' + escapeHtml(display) + '</span></span>';
+  }
+
+  // 取帖子标题里的赛季标签名（如「第二季」）；无第X季标签返回 null
+  function hpPostSeasonName(title) {
+    var s = (title == null ? "" : String(title));
+    var m = s.match(/^\s*(第[一二三四五六七八九十百千两0-9]+季)\s*[：:]/);
+    return m ? m[1] : null;
+  }
+  // 「第X季」中的 X 转数字（用于赛季排序），支持一~十、阿拉伯数字、「十X / X十 / X十Y」
+  function hpSeasonNum(season) {
+    var x = String(season).replace(/^第|季$/g, "");
+    if (/^\d+$/.test(x)) return parseInt(x, 10);
+    var map = { "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10 };
+    if (x === "十") return 10;
+    var m = x.match(/^十([一二三四五六七八九])$/); if (m) return 10 + map[m[1]];
+    m = x.match(/^([一二三四五六七八九])十$/); if (m) return map[m[1]] * 10;
+    m = x.match(/^([一二三四五六七八九])十([一二三四五六七八九])$/); if (m) return map[m[1]] * 10 + map[m[2]];
+    return map[x] || 999;
+  }
+  // 当前帖子里出现过的赛季标签（去重 + 按赛季顺序排序）
+  function hpAvailableSeasons() {
+    var set = {};
+    for (var i = 0; i < HpState.posts.length; i++) {
+      var sn = hpPostSeasonName(HpState.posts[i].title);
+      if (sn) set[sn] = true;
+    }
+    return Object.keys(set).sort(function (a, b) { return hpSeasonNum(a) - hpSeasonNum(b); });
+  }
+
+  // 列表标题：短标题单行省略常驻显示；过长标题自动无限循环滚动（跑马灯，无需鼠标悬停，触屏也滚）。
+  // 仅用单份文字 + 宽度计算 + 纯 WAAPI 关键帧（不克隆 DOM，避免移动端克隆节点布局异常）。
+  // 滚动文字绝对定位在文字视口内 + overflow:hidden 裁剪，不会越界到标签区；赛季标签固定。
+  // 循环关键帧（同帧跳变，全空仅 1 帧≈16ms 不可见）：
+  //   起点(开头在左)停 1s → 匀速左滚到文字完全滚出视口左侧(translateX=-textW)
+  //   → 同一帧瞬间跳到视口右侧外(translateX=viewW，视口全空、跳变不可见)
+  //   → 头部立即从右缘向左滚回起点(translateX=0) → 停 1s，循环。
+  // 列表每次 innerHTML 重建后调用；布局一次性确定（短=block 省略，长=absolute 滚动）。
+  // 注意：必须等双 rAF（布局 + 字体度量稳定）后再测 scrollWidth/clientWidth，
+  //       否则同步测量视口宽常为 0/异常，会把放得下的短标题（含无标签标题）误判成溢出而全部滚动。
+  function hpSetupTitleMarquee(container) {
+    var titles = container.querySelectorAll(".hp-post-title");
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        for (var i = 0; i < titles.length; i++) {
+          (function (el) {
+            if (!el.isConnected) return;          // 期间列表被重建：旧节点丢弃
+            var viewport = el.querySelector(".hp-post-title-scroll");
+            if (!viewport) return;
+            var textEl = viewport.querySelector(".hp-post-title-text");
+            if (!textEl) return;
+            // 清理上一次（防重复 setup）
+            textEl.classList.remove("is-marquee");
+            textEl.style.transform = "";
+            if (textEl._marqueeAnim) { try { textEl._marqueeAnim.cancel(); } catch (e) {} textEl._marqueeAnim = null; }
+            // 放得下：保持 block 单行省略，不滚动
+            if (textEl.scrollWidth <= viewport.clientWidth + 1) return;
+            // 过长：切绝对定位并自动播放
+            textEl.classList.add("is-marquee");
+            var textW = textEl.scrollWidth;        // 文字完整自然宽度
+            var viewW = viewport.clientWidth;      // 文字视口宽
+            var speed = 22;                        // 慢速 px/s
+            var pauseMs = 1000;                    // 起点停顿 1 秒
+            var rollOutMs = (textW / speed) * 1000;  // 0 → 完全滚出左侧
+            var rollInMs = (viewW / speed) * 1000;   // 右缘外 → 滚回起点
+            var totalMs = pauseMs + rollOutMs + rollInMs;
+            var f1 = pauseMs / totalMs;
+            var f2 = (pauseMs + rollOutMs) / totalMs;   // 滚出结束 = 跳变点（同 offset 两个值 → 瞬间跳变）
+            textEl._marqueeAnim = textEl.animate([
+              { transform: "translateX(0px)", offset: 0 },
+              { transform: "translateX(0px)", offset: f1 },                  // 起点停顿
+              { transform: "translateX(" + (-textW) + "px)", offset: f2 },   // 文字完全滚出视口左侧
+              { transform: "translateX(" + viewW + "px)", offset: f2 },      // 同帧跳到视口右侧外（视口全空，不可见）
+              { transform: "translateX(0px)", offset: 1 }                    // 头部从右缘滚回起点，无缝循环
+            ], { duration: totalMs, iterations: Infinity, easing: "linear" });
+          })(titles[i]);
+        }
+      });
+    });
   }
 
   function renderHpList() {
@@ -2801,9 +3047,18 @@
         return hit;
       });
     }
+    // 赛季筛选：非空时只保留标题带所选「第X季」标签的帖子（无标签帖子在指定赛季下不显示）
+    if (HpState.seasonFilter && HpState.seasonFilter.length) {
+      var seasonSet = {};
+      for (var si = 0; si < HpState.seasonFilter.length; si++) seasonSet[HpState.seasonFilter[si]] = true;
+      list = list.filter(function (p) {
+        var sn = hpPostSeasonName(p.title);
+        return !!sn && !!seasonSet[sn];
+      });
+    }
     // 更新搜索框 placeholder 显示帖子数量
     var searchInput = document.getElementById("hpSearchInput");
-    if (searchInput) searchInput.placeholder = "搜索 " + list.length + " 个帖子";
+    if (searchInput) searchInput.placeholder = "键入以搜索 " + list.length + " 个帖子...";
     if (!HpState.posts.length) {
       listEl.innerHTML = '';
       return;
@@ -2826,7 +3081,7 @@
       var sel = (p.id === HpState.selectedId) ? " selected" : "";
       html +=
         '<div class="hp-post-item' + sel + '" data-id="' + escapeHtml(p.id) + '">' +
-          '<div class="hp-post-title">' + escapeHtml(p.title || "(无标题)") + '</div>' +
+          '<div class="hp-post-title"><span class="hp-post-title-inner">' + hpBuildPostTitleHtml(p.title) + '</span></div>' +
           '<div class="hp-post-meta">' +
             '<span>' + fmtHpDate(p.dateObj) + '</span>' +
             '<span>' + p.commentCount + '评论</span>' +
@@ -2834,6 +3089,7 @@
         '</div>';
     }
     listEl.innerHTML = html;
+    hpSetupTitleMarquee(listEl);
     // 移动端：如果 selectedId 已被清掉（搜索/筛选导致），自动从详情页切回列表页
     if (!HpState.selectedId) {
       var isMobileAuto = window.matchMedia("(max-width: 900px)").matches;
@@ -3968,31 +4224,97 @@
     renderRankBoards();
   }
 
-  // ===== 排行页右列：水军榜 / 关怀榜（统计热点页所有帖子）=====
-  // 水军榜 = 主评论（顶层节点）次数；关怀榜 = 评论下所有子孙回复（任意深度）次数
-  // 直接展示完整排名（按次数降序），列表内部滚动；两榜各占卡片 50% 高度
-  function computeHpRankBoards() {
-    var commentCount = {};
-    var replyCount = {};
-    HpState.posts.forEach(function (post) {
-      (post.comments || []).forEach(function (root) {
-        var rn = root.name || "匿名";
-        commentCount[rn] = (commentCount[rn] || 0) + 1;
-        (function walk(arr) {
-          (arr || []).forEach(function (child) {
-            var cn = child.name || "匿名";
-            replyCount[cn] = (replyCount[cn] || 0) + 1;
-            walk(child.children);
-          });
-        })(root.children);
-      });
-    });
-    function fullList(map) {
-      return Object.keys(map)
-        .map(function (k) { return { name: k, count: map[k] }; })
-        .sort(function (a, b) { return b.count - a.count; });
+  // ===== 排行页右列：字数榜（统计热点页所有帖子的评论/回复，按人累加字数）=====
+  // 权重（最小单位）：中文汉字=2、emoji=2、中文标点=2；英文字母/数字=1、英文标点=1、空格=1。
+  // 等价关系：1中文 = 2英文 = 1emoji = 1中文标点 = 2英文标点 = 2空格。
+  // 最终换算成「中文字数」= floor(总权重 / 2)，只显示整数、丢弃小数（如 4.5 中文显示 4）。
+  function hpWordWeight(ch) {
+    // 空白（含全角空格、制表、换行）= 1
+    if (/^\s$/u.test(ch)) return 1;
+    var cp = ch.codePointAt(0);
+    // emoji（ZWJ、变体选择符、键帽、国旗 Regional Indicator、扩展象形文字）= 2
+    if (cp === 0x200D || cp === 0xFE0F || cp === 0x20E3) return 2;
+    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) return 2;
+    if (/\p{Extended_Pictographic}/u.test(ch)) return 2;
+    // 中文汉字 = 2
+    if (/\p{Script=Han}/u.test(ch)) return 2;
+    // 中文/全角标点 = 2（CJK 标点、全角标点、中文常用引号/省略号/破折号/间隔号）
+    if (
+      (cp >= 0x3001 && cp <= 0x303F) ||                                   // 、。「」『』【】《》…
+      (cp >= 0xFF00 && cp <= 0xFF0F) || (cp >= 0xFF1A && cp <= 0xFF20) || // 全角标点（不含全角数字 FF10-19）
+      (cp >= 0xFF3B && cp <= 0xFF40) || (cp >= 0xFF5B && cp <= 0xFF65) || // 全角标点（不含全角字母 FF21-5A）
+      cp === 0x2014 || cp === 0x2013 || cp === 0x2012 ||                 // — – ‐
+      cp === 0x2018 || cp === 0x2019 || cp === 0x201C || cp === 0x201D || // ‘ ’ “ ”
+      cp === 0x2026 || cp === 0x2025 || cp === 0x2027 || cp === 0x00B7    // … ‥ ‧ ·
+    ) return 2;
+    // 其余（ASCII 字母/数字/英文标点、拉丁扩展等）= 1
+    return 1;
+  }
+
+  // 单条文本的总权重：按「字形簇」遍历（Intl.Segmenter grapheme），
+  // 使 ZWJ 复合 emoji（👨‍👩‍👧）、国旗（🇨🇳）、带肤色/变体修饰的 emoji 整体算 1 个 emoji。
+  // 不支持 Segmenter 的旧浏览器回退为按 code point 遍历。
+  var HP_GRAPHEME_SEG = (function () {
+    try { return new Intl.Segmenter("zh", { granularity: "grapheme" }); }
+    catch (e) { return null; }
+  })();
+  // 一个字形簇只要含 emoji 成分（扩展象形/国旗 Regional Indicator/ZWJ/变体选择符/键帽）即视为 1 个 emoji
+  var HP_EMOJI_SEG = /\p{Extended_Pictographic}|\p{Regional_Indicator}|[‍⃣️]/u;
+  function hpTextWeight(text) {
+    var s = String(text == null ? "" : text);
+    if (!s) return 0;
+    var segs;
+    if (HP_GRAPHEME_SEG) {
+      segs = [];
+      var it = HP_GRAPHEME_SEG.segment(s);
+      for (var g of it) segs.push(g.segment);
+    } else {
+      segs = Array.from(s);
     }
-    return { comments: fullList(commentCount), replies: fullList(replyCount) };
+    var total = 0;
+    for (var i = 0; i < segs.length; i++) {
+      var seg = segs[i];
+      if (HP_EMOJI_SEG.test(seg)) { total += 2; continue; }  // 1 个 emoji 标签 = 1 中文权重
+      var chars = Array.from(seg);
+      for (var j = 0; j < chars.length; j++) total += hpWordWeight(chars[j]);
+    }
+    return total;
+  }
+
+  function computeHpWordBoard() {
+    var weightMap = {};
+    HpState.posts.forEach(function (post) {
+      (function walk(arr) {
+        (arr || []).forEach(function (node) {
+          var n = node.name || "匿名";
+          weightMap[n] = (weightMap[n] || 0) + hpTextWeight(node.text);
+          walk(node.children);
+        });
+      })(post.comments);
+    });
+    return Object.keys(weightMap)
+      .map(function (k) { return { name: k, count: Math.floor(weightMap[k] / 2) }; })
+      .sort(function (a, b) { return b.count - a.count; });
+  }
+
+  // 数字千分位：每 3 位加逗号（如 12345 -> 12,345）
+  function hpFormatCount(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
+  // 按字数定等级（返回 { label, cls, rank }）：LV1灰 ≤200 … LV9红 50001~100000，LV+黑 ≥100001
+  function hpWordLevel(count) {
+    var c = count;
+    if (c >= 100001) return { label: "LV+", cls: "lvplus", rank: 10 };
+    if (c >= 50001)  return { label: "LV9", cls: "lv9", rank: 9 };
+    if (c >= 20001)  return { label: "LV8", cls: "lv8", rank: 8 };
+    if (c >= 10001)  return { label: "LV7", cls: "lv7", rank: 7 };
+    if (c >= 5001)   return { label: "LV6", cls: "lv6", rank: 6 };
+    if (c >= 2001)   return { label: "LV5", cls: "lv5", rank: 5 };
+    if (c >= 1001)   return { label: "LV4", cls: "lv4", rank: 4 };
+    if (c >= 501)    return { label: "LV3", cls: "lv3", rank: 3 };
+    if (c >= 201)    return { label: "LV2", cls: "lv2", rank: 2 };
+    return { label: "LV1", cls: "lv1", rank: 1 };
   }
 
   function renderRankBoardList(ul, entries) {
@@ -4002,54 +4324,29 @@
       return;
     }
     var html = "";
+    // 最高等级：榜单按字数降序，第一名等级即最高；所有持有该等级的人名字/字数都金色
+    var topRank = entries.reduce(function (m, e) { return Math.max(m, hpWordLevel(e.count).rank); }, 0);
     entries.forEach(function (e, i) {
       // 复用 hpGetAvatar：加 hp-comment-avatar 类 + data-name，真实头像加载完成后会被自动刷新
       var avatar = hpGetAvatar(e.name);
       var bg = avatar.indexOf("data:") === 0 ? "url('" + avatar + "')" : avatar;
-      html += '<li class="rank-board-item' + (i === 0 ? " top1" : "") + '">' +
-        '<span class="rank-board-idx">' + (i + 1) + '</span>' +
+      var lv = hpWordLevel(e.count);
+      var isTop = lv.rank === topRank;
+      html += '<li class="rank-board-item' + (isTop ? " top1" : "") + '">' +
         '<span class="rank-board-avatar hp-comment-avatar" data-name="' + escapeHtml(e.name) + '" style="background-image:' + bg + ';"></span>' +
+        '<span class="rank-board-level ' + lv.cls + '">' + lv.label + '</span>' +
         '<span class="rank-board-name">' + escapeHtml(e.name) + '</span>' +
-        '<span class="rank-board-count">' + e.count + '</span>' +
+        '<span class="rank-board-count">' + hpFormatCount(e.count) + '</span>' +
       '</li>';
     });
     ul.innerHTML = html;
   }
 
+  // 桌面/移动端统一：只有一个字数榜，直接渲染
   function renderRankBoards() {
-    var commentUl = $("#rankCommentBoard");
-    var replyUl = $("#rankReplyBoard");
-    if (!commentUl && !replyUl) return;
-    var boards = computeHpRankBoards();
-
-    // 移动端：合并两榜为一个综合榜
-    if (window.matchMedia("(max-width: 900px)").matches) {
-      // 隐藏关怀榜 board
-      var replyBoard = replyUl ? replyUl.closest(".rank-board") : null;
-      if (replyBoard) replyBoard.style.display = "none";
-      // 隐藏综合榜标题行（简化移动端）
-      var title = commentUl ? commentUl.closest(".rank-board").querySelector(".rank-board-title") : null;
-      if (title) title.style.display = "none";
-      // 合并数据：按人名合并 count = comments + replies
-      var mergedMap = {};
-      boards.comments.forEach(function (c) { mergedMap[c.name] = (mergedMap[c.name] || 0) + c.count; });
-      boards.replies.forEach(function (r) { mergedMap[r.name] = (mergedMap[r.name] || 0) + r.count; });
-      var mergedList = Object.keys(mergedMap)
-        .map(function (k) { return { name: k, count: mergedMap[k] }; })
-        .sort(function (a, b) { return b.count - a.count; });
-      renderRankBoardList(commentUl, mergedList);
-      return;
-    }
-    // 桌面端：恢复隐藏状态 + 分别渲染
-    var replyBoard2 = replyUl ? replyUl.closest(".rank-board") : null;
-    if (replyBoard2 && replyBoard2.style.display === "none") replyBoard2.style.display = "";
-    var title2 = commentUl ? commentUl.closest(".rank-board").querySelector(".rank-board-title") : null;
-    if (title2) {
-      title2.textContent = "水军榜";
-      if (title2.style.display === "none") title2.style.display = "";
-    }
-    renderRankBoardList(commentUl, boards.comments);
-    renderRankBoardList(replyUl, boards.replies);
+    var ul = $("#rankWordBoard");
+    if (!ul) return;
+    renderRankBoardList(ul, computeHpWordBoard());
   }
 
   // 总排行项选中态（总榜卡片内唯一项，编号 0）
@@ -5530,6 +5827,7 @@
           }, 120);
         });
       }
+      hpBindFilterPopup();   // 赛季筛选弹窗开关（只绑一次）
       // 进入热点 tab 时：强制重扫一次 hp（防止首次 init 时 hp/ 目录刚建、静态服务器还没加载到、或 view-hot DOM 还没挂载导致的渲染丢失）
       var navBtns = document.querySelectorAll(".nav-item[data-view]");
       navBtns.forEach(function (btn) {
@@ -6088,17 +6386,27 @@
           .catch(function () {});
       } catch (e) { /* 浏览器禁用 fetch 或 hp 目录缺失时不抛错阻塞其他模块 */ }
 
-      // ===== 设置页版本信息显示：优先使用 .data 预加载文件的版本号 =====
+      // ===== 设置页版本信息显示：优先使用 .data 预加载文件头注释里的版本号 =====
       (function updateVersionDisplay() {
         var map = { C1: "versionC1", C2: "versionC2", HP: "versionHP" };
         Object.keys(map).forEach(function (type) {
           var el = document.getElementById(map[type]);
           if (!el) return;
-          if (PRELOADED_DATA[type] && PRELOADED_DATA[type].version) {
-            el.textContent = PRELOADED_DATA[type].version;
+          var d = PRELOADED_DATA[type];
+          if (d && d.version) {
+            // 读到了文件全文（http/https 或 file:// 下 XHR 可读）→ 头注释版本号
+            el.textContent = d.version;
+            el.removeAttribute("title");
+          } else if (d && d.backup) {
+            // file:// 双击模式：数据已通过 <script> 从 .data 文件加载（是最新版），
+            // 但浏览器沙箱禁止网页读取本地文件原文，头注释里的版本号读不到。
+            // 不回退显示 localStorage 里的旧导入版本号（会误显示成旧版），用占位符并加悬停说明。
+            el.textContent = "—";
+            el.title = "本地双击打开（file://）时，浏览器禁止网页读取本地文件，版本号不可读；数据已是 .data 文件中的最新版本。用本地服务器打开可显示版本号。";
           } else {
             var storedVer = getStoredVersion(type);
             el.textContent = storedVer && storedVer !== "0" ? storedVer : "未导入";
+            el.removeAttribute("title");
           }
         });
       })();
